@@ -430,3 +430,49 @@ This command succeeded.
 ```bash
 ssh -o IdentitiesOnly=yes -i ~/.ssh/id_rsa_chameleon cc@192.5.87.178
 ```
+
+---
+
+## 12) DMS Layer Recipe1M tiny sample runbook
+
+### Stage sample files to object storage
+
+```bash
+cd /Users/mudrex/Desktop/mealie
+python scripts/ingest_recipe1m_sample.py \
+  --manifest-source "<jsonl-file-or-url>" \
+  --sample-size 1000 \
+  --container proj26-obj-store \
+  --raw-prefix raw/recipe1m/v1
+```
+
+### Trigger async ingest + auto-publish `v1`
+
+```bash
+curl -X POST "http://192.5.87.69:30080/datasets/<dataset_id>/ingest/recipe1m" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "manifest_source": "<jsonl-file-or-url>",
+    "sample_size": 1000,
+    "raw_prefix": "raw/recipe1m",
+    "target_container": "proj26-obj-store",
+    "auto_publish_version": "v1"
+  }'
+```
+
+### Check job status
+
+```bash
+curl "http://192.5.87.69:30080/jobs/<job_id>"
+```
+
+### Expected artifacts in object store
+
+```text
+proj26-obj-store/
+  raw/recipe1m/<run-id>/...
+  raw/recipe1m/<run-id>/ingest_summary.json
+  objects/sha256/ab/cd/<hash>.jpg
+  versions/v1/manifest.parquet
+  versions/v1/meta.json
+```

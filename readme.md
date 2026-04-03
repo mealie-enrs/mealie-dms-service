@@ -51,6 +51,7 @@ External storage:
 - `POST /datasets`: create dataset
 - `GET /datasets/{dataset_id}/versions`: list published versions
 - `POST /datasets/{dataset_id}/publish`: publish version asynchronously
+- `POST /datasets/{dataset_id}/ingest/recipe1m`: ingest tiny Recipe1M sample asynchronously
 - `GET /jobs/{job_id}`: track background job
 
 ## Data Ownership
@@ -99,6 +100,51 @@ exports/v1/...
 - Dataset versions are **manifests**, not full data copies.
 - `v2` is produced by applying metadata membership changes to `v1`.
 - Bulk training reads should fetch from object storage, not stream through API.
+
+## Recipe1M tiny sample ingest
+
+Staging script (downloads + writes raw sample data to object store):
+
+```bash
+python scripts/ingest_recipe1m_sample.py \
+  --manifest-source "<jsonl-file-or-url>" \
+  --sample-size 1000 \
+  --container proj26-obj-store \
+  --raw-prefix raw/recipe1m/v1
+```
+
+Asynchronous DMS ingestion API flow:
+
+1. Create dataset (`POST /datasets`)
+2. Trigger ingest:
+
+```bash
+curl -X POST "http://localhost:8000/datasets/<dataset_id>/ingest/recipe1m" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "manifest_source": "<jsonl-file-or-url>",
+    "sample_size": 1000,
+    "raw_prefix": "raw/recipe1m",
+    "target_container": "proj26-obj-store",
+    "auto_publish_version": "v1"
+  }'
+```
+
+3. Track job with `GET /jobs/{job_id}`
+
+### Optional bonus quality gates (Soda)
+
+The publish path enforces built-in checks (non-empty manifest, no duplicate checksums),
+and can run Soda scan as a hard gate when enabled:
+
+```bash
+export ENABLE_SODA_CHECKS=true
+```
+
+Place Soda configuration/checks at:
+
+- `quality/soda/configuration.yml`
+- `quality/soda/checks.yml`
 
 ## OpenStack/Chameleon CLI setup
 

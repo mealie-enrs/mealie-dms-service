@@ -11,10 +11,11 @@ from dms.schemas import (
     ApproveUploadRequest,
     DatasetCreateRequest,
     PublishVersionRequest,
+    Recipe1MSampleIngestRequest,
     UploadInitRequest,
     UploadInitResponse,
 )
-from dms.tasks import process_upload_approval, publish_dataset_version
+from dms.tasks import ingest_recipe1m_sample, process_upload_approval, publish_dataset_version
 
 app = FastAPI(title="DMS API")
 
@@ -121,6 +122,42 @@ def publish_dataset(dataset_id: int, payload: PublishVersionRequest, db: Session
     db.refresh(job)
 
     task = publish_dataset_version.delay(job.id, dataset_id, payload.version, payload.include_object_ids)
+    job.celery_task_id = task.id
+    db.commit()
+
+    return {"job_id": job.id, "task_id": task.id, "status": job.status}
+
+
+@app.post("/datasets/{dataset_id}/ingest/recipe1m")
+def ingest_recipe1m(
+    dataset_id: int,
+    payload: Recipe1MSampleIngestRequest,
+    db: Session = Depends(get_db),
+) -> dict:
+    dataset = db.get(Dataset, dataset_id)
+    if not dataset:
+        raise HTTPException(status_code=404, detail="dataset not found")
+
+    job = Job(
+        kind="recipe1m_ingest",
+        status=JobStatus.queued,
+        payload_json=json.dumps(payload.model_dump()),
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow(),
+    )
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+
+    task = ingest_recipe1m_sample.delay(
+        job.id,
+        dataset_id,
+        payload.manifest_source,
+        payload.sample_size,
+        payload.raw_prefix,
+        payload.target_container,
+        payload.auto_publish_version,
+    )
     job.celery_task_id = task.id
     db.commit()
 

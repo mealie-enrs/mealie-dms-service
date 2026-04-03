@@ -1,5 +1,7 @@
 import io
 import json
+import os
+import subprocess
 from datetime import datetime, timedelta
 
 import pyarrow as pa
@@ -9,6 +11,7 @@ from dms.celery_app import celery_app
 from dms.config import settings
 from dms.db import SessionLocal
 from dms.models import Dataset, DatasetItem, DatasetVersion, Job, JobStatus, Object, Upload, UploadStatus
+from dms.recipe1m import iter_sample_image_urls, upload_curated_object, upload_raw_sample
 from dms.storage import copy_object, put_bytes, put_text, write_version_meta
 
 
@@ -19,6 +22,98 @@ def _set_job_state(db, job_id: int, status: JobStatus, message: str | None = Non
     job.status = status
     job.message = message
     db.commit()
+
+
+def _run_publish_quality_checks(rows: list[dict]) -> None:
+    if not rows:
+        raise ValueError("quality check failed: empty manifest rows")
+
+    missing_keys = [row for row in rows if not row.get("object_key")]
+    if missing_keys:
+        raise ValueError(f"quality check failed: {len(missing_keys)} rows missing object_key")
+
+    checksums = [row.get("checksum") for row in rows if row.get("checksum")]
+    duplicate_count = len(checksums) - len(set(checksums))
+    if duplicate_count > 0:
+        raise ValueError(f"quality check failed: duplicate checksum count={duplicate_count}")
+
+    # Optional Soda integration for bonus data-quality gating.
+    if os.getenv("ENABLE_SODA_CHECKS", "false").lower() == "true":
+        config_file = os.getenv("SODA_CONFIGURATION_FILE", "quality/soda/configuration.yml")
+        checks_file = os.getenv("SODA_CHECKS_FILE", "quality/soda/checks.yml")
+        if not (os.path.exists(config_file) and os.path.exists(checks_file)):
+            raise ValueError("Soda checks enabled but configuration/checks files are missing")
+
+        result = subprocess.run(
+            ["soda", "scan", "-d", "dms", "-c", config_file, checks_file],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            stderr = (result.stderr or "").strip()
+            stdout = (result.stdout or "").strip()
+            raise ValueError(f"Soda checks failed: {stderr or stdout}")
+
+
+def _publish_dataset_version_records(
+    db,
+    *,
+    dataset_id: int,
+    dataset_name: str,
+    version: str,
+    objects: list[Object],
+) -> tuple[str, str, int]:
+    rows = []
+    for obj in objects:
+        rows.append(
+            {
+                "object_key": obj.object_key,
+                "label": None,
+                "split": "train",
+                "width": obj.width,
+                "height": obj.height,
+                "checksum": obj.checksum_sha256,
+                "source_upload_id": obj.source_upload_id,
+            }
+        )
+
+    _run_publish_quality_checks(rows)
+
+    table = pa.Table.from_pylist(rows)
+    buffer = io.BytesIO()
+    pq.write_table(table, buffer)
+
+    manifest_key = f"versions/{version}/manifest.parquet"
+    put_bytes(
+        settings.swift_training_container,
+        manifest_key,
+        buffer.getvalue(),
+        "application/octet-stream",
+    )
+    meta_key = write_version_meta(version=version, dataset_name=dataset_name, object_count=len(rows))
+
+    dataset_version = DatasetVersion(
+        dataset_id=dataset_id,
+        version=version,
+        manifest_key=manifest_key,
+        meta_key=meta_key,
+    )
+    db.add(dataset_version)
+    db.flush()
+
+    for obj in objects:
+        db.add(
+            DatasetItem(
+                dataset_version_id=dataset_version.id,
+                object_id=obj.id,
+                label=None,
+                split="train",
+            )
+        )
+
+    db.commit()
+    return manifest_key, meta_key, len(rows)
 
 
 @celery_app.task(name="dms.tasks.process_upload_approval")
@@ -91,54 +186,113 @@ def publish_dataset_version(job_id: int, dataset_id: int, version: str, object_i
             _set_job_state(db, job_id, JobStatus.failed, "no objects selected")
             return
 
-        rows = []
-        for obj in objects:
-            rows.append(
-                {
-                    "object_key": obj.object_key,
-                    "label": None,
-                    "split": "train",
-                    "width": obj.width,
-                    "height": obj.height,
-                    "checksum": obj.checksum_sha256,
-                    "source_upload_id": obj.source_upload_id,
-                }
-            )
-
-        table = pa.Table.from_pylist(rows)
-        buffer = io.BytesIO()
-        pq.write_table(table, buffer)
-
-        manifest_key = f"versions/{version}/manifest.parquet"
-        put_bytes(
-            settings.swift_training_container,
-            manifest_key,
-            buffer.getvalue(),
-            "application/octet-stream",
-        )
-        meta_key = write_version_meta(version=version, dataset_name=dataset.name, object_count=len(rows))
-
-        dataset_version = DatasetVersion(
+        _, _, row_count = _publish_dataset_version_records(
+            db,
             dataset_id=dataset_id,
+            dataset_name=dataset.name,
             version=version,
-            manifest_key=manifest_key,
-            meta_key=meta_key,
+            objects=objects,
         )
-        db.add(dataset_version)
-        db.flush()
+        _set_job_state(db, job_id, JobStatus.succeeded, f"published {version} with {row_count} items")
+    except Exception as exc:
+        db.rollback()
+        _set_job_state(db, job_id, JobStatus.failed, f"failed: {exc}")
+        raise
+    finally:
+        db.close()
 
-        for obj in objects:
-            db.add(
-                DatasetItem(
-                    dataset_version_id=dataset_version.id,
-                    object_id=obj.id,
-                    label=None,
-                    split="train",
+
+@celery_app.task(name="dms.tasks.ingest_recipe1m_sample")
+def ingest_recipe1m_sample(
+    job_id: int,
+    dataset_id: int,
+    manifest_source: str,
+    sample_size: int = 1000,
+    raw_prefix: str = "raw/recipe1m",
+    target_container: str | None = None,
+    auto_publish_version: str | None = None,
+) -> None:
+    db = SessionLocal()
+    try:
+        _set_job_state(db, job_id, JobStatus.running)
+        dataset = db.get(Dataset, dataset_id)
+        if not dataset:
+            _set_job_state(db, job_id, JobStatus.failed, "dataset not found")
+            return
+
+        container = target_container or settings.swift_training_container
+        run_id = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+        run_prefix = f"{raw_prefix.rstrip('/')}/{run_id}"
+
+        created_object_ids: list[int] = []
+        skipped_existing = 0
+        failures = 0
+
+        for idx, image_url in enumerate(iter_sample_image_urls(manifest_source, sample_size), start=1):
+            try:
+                raw_key, raw_bytes = upload_raw_sample(
+                    image_url=image_url,
+                    container=container,
+                    raw_prefix=run_prefix,
+                    item_idx=idx,
                 )
+                object_key, checksum = upload_curated_object(
+                    raw_bytes=raw_bytes,
+                    container=container,
+                    image_url=image_url,
+                )
+
+                existing = db.query(Object).filter(Object.object_key == object_key).one_or_none()
+                if existing:
+                    created_object_ids.append(existing.id)
+                    skipped_existing += 1
+                    continue
+
+                obj = Object(
+                    object_key=object_key,
+                    checksum_sha256=checksum,
+                    mime_type="image/*",
+                    width=None,
+                    height=None,
+                    source_upload_id=None,
+                )
+                db.add(obj)
+                db.commit()
+                db.refresh(obj)
+                created_object_ids.append(obj.id)
+            except Exception:
+                failures += 1
+
+        summary = {
+            "dataset_id": dataset_id,
+            "manifest_source": manifest_source,
+            "sample_size_requested": sample_size,
+            "container": container,
+            "run_prefix": run_prefix,
+            "objects_registered": len(created_object_ids),
+            "existing_reused": skipped_existing,
+            "failed_downloads": failures,
+            "auto_publish_version": auto_publish_version,
+            "created_at": datetime.utcnow().isoformat() + "Z",
+        }
+        put_text(container, f"{run_prefix}/ingest_summary.json", json.dumps(summary, indent=2), "application/json")
+
+        if auto_publish_version and created_object_ids:
+            objects = db.query(Object).filter(Object.id.in_(created_object_ids)).all()
+            _publish_dataset_version_records(
+                db,
+                dataset_id=dataset.id,
+                dataset_name=dataset.name,
+                version=auto_publish_version,
+                objects=objects,
             )
 
-        db.commit()
-        _set_job_state(db, job_id, JobStatus.succeeded, f"published {version} with {len(rows)} items")
+        _set_job_state(
+            db,
+            job_id,
+            JobStatus.succeeded,
+            f"ingested={len(created_object_ids)} existing={skipped_existing} failed={failures}",
+        )
     except Exception as exc:
         db.rollback()
         _set_job_state(db, job_id, JobStatus.failed, f"failed: {exc}")

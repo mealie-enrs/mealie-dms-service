@@ -23,3 +23,11 @@ class DatasetCreateRequest(BaseModel):
 class PublishVersionRequest(BaseModel):
     version: str = Field(min_length=1)
     include_object_ids: list[int]
+
+
+class Recipe1MSampleIngestRequest(BaseModel):
+    manifest_source: str = Field(min_length=1, description="Local path or URL to Recipe1M-style JSONL")
+    sample_size: int = Field(default=1000, ge=1, le=50000)
+    raw_prefix: str = Field(default="raw/recipe1m")
+    target_container: str | None = None
+    auto_publish_version: str | None = None

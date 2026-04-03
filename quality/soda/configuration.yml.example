@@ -1,0 +1,8 @@
+data_source dms:
+  type: postgres
+  host: localhost
+  port: "5432"
+  username: dms
+  password: dms
+  database: dms
+  schema: public
