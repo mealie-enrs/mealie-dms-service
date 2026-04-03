@@ -19,8 +19,14 @@ terraform apply tfplan
 
 Required variables are in `terraform/variables.tf`. Use a `terraform.tfvars` file.
 
-For lease-backed provisioning on Chameleon, set `reservation_id` in `terraform.tfvars`.
-This maps to OpenStack scheduler hint `reservation=<UUID>` automatically.
+For lease-backed provisioning, set `reservation_id` in `terraform.tfvars`.
+This Terraform stack uses `local-exec` + OpenStack CLI to create the instance
+with `--hint reservation=<UUID>`.
+
+Before `terraform apply`, ensure:
+
+- `openstack` CLI is installed and available in your shell
+- auth env is loaded (for example: `source .../app-cred-...-openrc.sh`)
 
 After apply, Terraform outputs:
 
