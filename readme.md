@@ -203,6 +203,8 @@ When a commit lands on `main` with app or manifest changes, it:
 Required GitHub repo secret:
 
 - `KUBECONFIG_B64`: base64 of your kubeconfig file
+- `GHCR_USERNAME`: GHCR account owner for pushed image (for example `nidhish1`)
+- `GHCR_PAT`: Personal Access Token with `write:packages` (and `read:packages`)
 
 Create it from laptop:
 
