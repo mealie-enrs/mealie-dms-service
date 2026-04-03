@@ -132,6 +132,10 @@ curl -X POST "http://localhost:8000/datasets/<dataset_id>/ingest/recipe1m" \
 
 3. Track job with `GET /jobs/{job_id}`
 
+Cloud-side note: ingestion runs in the worker pod and supports both:
+- JSONL manifest URLs/files (one JSON object per line)
+- Large JSON array metadata sources (for example `layer2+.json`) via streaming parser
+
 ### Optional bonus quality gates (Soda)
 
 The publish path enforces built-in checks (non-empty manifest, no duplicate checksums),

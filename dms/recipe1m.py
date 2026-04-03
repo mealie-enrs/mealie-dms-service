@@ -1,3 +1,4 @@
+import io
 import hashlib
 import json
 import os
@@ -7,29 +8,51 @@ from typing import Any, Iterable
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
+import ijson
+
 from dms.storage import make_object_key_from_bytes, put_bytes
 
 
-def _iter_jsonl_lines(path_or_url: str) -> Iterable[dict[str, Any]]:
+def _open_source_stream(path_or_url: str):
     if path_or_url.startswith("http://") or path_or_url.startswith("https://"):
         req = Request(path_or_url, headers={"User-Agent": "dms-recipe1m-ingest/1.0"})
-        with urlopen(req, timeout=60) as resp:  # nosec B310
-            for raw in resp:
-                line = raw.decode("utf-8").strip()
-                if line:
-                    yield json.loads(line)
-        return
+        return urlopen(req, timeout=60)  # nosec B310
+    return open(path_or_url, "rb")
 
-    with open(path_or_url, "r", encoding="utf-8") as handle:
-        for line in handle:
-            line = line.strip()
-            if line:
-                yield json.loads(line)
+
+def _iter_json_array_items(stream) -> Iterable[dict[str, Any]]:
+    for item in ijson.items(stream, "item"):
+        if isinstance(item, dict):
+            yield item
+
+
+def _iter_jsonl_items(stream) -> Iterable[dict[str, Any]]:
+    for raw in stream:
+        line = raw.decode("utf-8").strip()
+        if not line:
+            continue
+        item = json.loads(line)
+        if isinstance(item, dict):
+            yield item
+
+
+def _iter_manifest_items(path_or_url: str) -> Iterable[dict[str, Any]]:
+    with _open_source_stream(path_or_url) as stream:
+        buffered = io.BufferedReader(stream)
+        peeked = buffered.peek(32).lstrip()
+        prefix = peeked[:1] if peeked else b""
+
+        if prefix == b"[":
+            yield from _iter_json_array_items(buffered)
+            return
+        yield from _iter_jsonl_items(buffered)
 
 
 def _extract_image_url(record: dict[str, Any]) -> str | None:
     if isinstance(record.get("image_url"), str):
         return record["image_url"]
+    if isinstance(record.get("url"), str):
+        return record["url"]
 
     images = record.get("images")
     if isinstance(images, list) and images:
@@ -37,15 +60,21 @@ def _extract_image_url(record: dict[str, Any]) -> str | None:
         if isinstance(first, str):
             return first
         if isinstance(first, dict):
-            for key in ("url", "image_url"):
+            for key in ("url", "image_url", "src"):
                 if isinstance(first.get(key), str):
                     return first[key]
+
+    image_urls = record.get("image_urls")
+    if isinstance(image_urls, list) and image_urls:
+        first = image_urls[0]
+        if isinstance(first, str):
+            return first
     return None
 
 
 def iter_sample_image_urls(manifest_source: str, sample_size: int) -> Iterable[str]:
     count = 0
-    for record in _iter_jsonl_lines(manifest_source):
+    for record in _iter_manifest_items(manifest_source):
         image_url = _extract_image_url(record)
         if not image_url:
             continue

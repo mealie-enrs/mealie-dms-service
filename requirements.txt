@@ -7,3 +7,4 @@ celery[redis]==5.4.0
 python-swiftclient==4.6.0
 python-keystoneclient==5.5.0
 pyarrow==19.0.1
+ijson==3.3.0
