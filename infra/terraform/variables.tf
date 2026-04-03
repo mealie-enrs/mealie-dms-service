@@ -73,8 +73,7 @@ variable "ssh_key_name" {
 
 variable "reservation_id" {
   type        = string
-  description = "Blazar reservation UUID for lease-backed scheduling"
-  default     = null
+  description = "Blazar reservation UUID used in --hint reservation=<id>"
 }
 
 variable "allowed_ssh_cidr" {

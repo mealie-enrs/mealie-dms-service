@@ -1,13 +1,3 @@
-data "openstack_networking_network_v2" "private" {
-  name = var.network_name
-}
-
-locals {
-  scheduler_hints = var.reservation_id != null && var.reservation_id != "" ? {
-    reservation = var.reservation_id
-  } : {}
-}
-
 resource "openstack_networking_secgroup_v2" "dms" {
   name        = "${var.instance_name}-sg"
   description = "DMS K3s security group"
@@ -33,45 +23,90 @@ resource "openstack_networking_secgroup_rule_v2" "api" {
   security_group_id = openstack_networking_secgroup_v2.dms.id
 }
 
-resource "openstack_networking_secgroup_rule_v2" "egress" {
-  direction         = "egress"
-  ethertype         = "IPv4"
-  security_group_id = openstack_networking_secgroup_v2.dms.id
-}
-
-resource "openstack_compute_instance_v2" "dms" {
-  name        = var.instance_name
-  image_name  = var.image_name
-  flavor_name = var.flavor_name
-  key_pair    = var.ssh_key_name
-  scheduler_hints = local.scheduler_hints
-
-  network {
-    uuid = data.openstack_networking_network_v2.private.id
-  }
-
-  security_groups = [openstack_networking_secgroup_v2.dms.name]
-
-  user_data = templatefile("${path.module}/cloud-init.yaml.tftpl", {
-    ssh_user = var.ssh_user
-  })
-}
-
-resource "openstack_blockstorage_volume_v3" "dms_data" {
-  name = "${var.instance_name}-data"
-  size = var.volume_size_gb
-}
-
-resource "openstack_compute_volume_attach_v2" "attach_dms_data" {
-  instance_id = openstack_compute_instance_v2.dms.id
-  volume_id   = openstack_blockstorage_volume_v3.dms_data.id
-}
-
 resource "openstack_networking_floatingip_v2" "dms_fip" {
   pool = var.external_network_name
 }
 
-resource "openstack_compute_floatingip_associate_v2" "fip_assoc" {
-  floating_ip = openstack_networking_floatingip_v2.dms_fip.address
-  instance_id = openstack_compute_instance_v2.dms.id
+resource "null_resource" "create_reserved_server" {
+  depends_on = [
+    openstack_networking_secgroup_v2.dms,
+    openstack_networking_secgroup_rule_v2.ssh,
+    openstack_networking_secgroup_rule_v2.api,
+  ]
+
+  triggers = {
+    instance_name   = var.instance_name
+    image_name      = var.image_name
+    flavor_name     = var.flavor_name
+    network_name    = var.network_name
+    key_name        = var.ssh_key_name
+    reservation_id  = var.reservation_id
+    security_group  = openstack_networking_secgroup_v2.dms.name
+    cloud_init_hash = sha1(templatefile("${path.module}/cloud-init.yaml.tftpl", { ssh_user = var.ssh_user }))
+  }
+
+  provisioner "local-exec" {
+    interpreter = ["/bin/bash", "-c"]
+    command     = <<-EOT
+      set -euo pipefail
+
+      if openstack server show "${var.instance_name}" >/dev/null 2>&1; then
+        echo "Server ${var.instance_name} already exists; skipping create."
+      else
+        cat > /tmp/${var.instance_name}-cloud-init.yaml <<'EOF'
+${templatefile("${path.module}/cloud-init.yaml.tftpl", { ssh_user = var.ssh_user })}
+EOF
+        openstack server create \
+          --flavor "${var.flavor_name}" \
+          --image "${var.image_name}" \
+          --network "${var.network_name}" \
+          --key-name "${var.ssh_key_name}" \
+          --security-group "${openstack_networking_secgroup_v2.dms.name}" \
+          --hint "reservation=${var.reservation_id}" \
+          --user-data "/tmp/${var.instance_name}-cloud-init.yaml" \
+          "${var.instance_name}"
+      fi
+
+      for i in $(seq 1 90); do
+        STATUS="$(openstack server show "${var.instance_name}" -f value -c status || true)"
+        if [ "$STATUS" = "ACTIVE" ]; then
+          exit 0
+        fi
+        if [ "$STATUS" = "ERROR" ]; then
+          echo "Server reached ERROR state"
+          openstack server show "${var.instance_name}" -f yaml
+          exit 1
+        fi
+        sleep 10
+      done
+
+      echo "Timed out waiting for ${var.instance_name} to become ACTIVE"
+      exit 1
+    EOT
+  }
+}
+
+resource "null_resource" "associate_fip" {
+  depends_on = [
+    null_resource.create_reserved_server,
+    openstack_networking_floatingip_v2.dms_fip,
+  ]
+
+  triggers = {
+    instance_name = var.instance_name
+    floating_ip   = openstack_networking_floatingip_v2.dms_fip.address
+  }
+
+  provisioner "local-exec" {
+    interpreter = ["/bin/bash", "-c"]
+    command     = <<-EOT
+      set -euo pipefail
+      PORT_ID="$(openstack floating ip show "${openstack_networking_floatingip_v2.dms_fip.address}" -f value -c port_id || true)"
+      if [ -n "$PORT_ID" ] && [ "$PORT_ID" != "None" ]; then
+        echo "Floating IP ${openstack_networking_floatingip_v2.dms_fip.address} already associated."
+      else
+        openstack server add floating ip "${var.instance_name}" "${openstack_networking_floatingip_v2.dms_fip.address}"
+      fi
+    EOT
+  }
 }
