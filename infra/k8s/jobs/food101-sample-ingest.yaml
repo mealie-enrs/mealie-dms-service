@@ -1,0 +1,105 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: food101-sample-ingest
+  namespace: dms
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: ingest
+          image: ghcr.io/nidhish1/dms-app:latest
+          imagePullPolicy: Always
+          env:
+            - name: SWIFT_TRAINING_CONTAINER
+              value: proj26-obj-store
+          envFrom:
+            - secretRef:
+                name: dms-secrets
+            - configMapRef:
+                name: dms-config
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              python - <<'PY'
+              from datetime import datetime
+              import hashlib
+              import io
+              import json
+
+              import pyarrow as pa
+              import pyarrow.parquet as pq
+              from datasets import load_dataset
+
+              from dms.config import settings
+              from dms.storage import put_bytes, put_text
+
+
+              split = "train[:5000]"
+              run_id = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+              raw_prefix = f"raw/food101/{run_id}"
+              objects = []
+              ds = load_dataset("food101", split=split)
+
+              for idx, row in enumerate(ds):
+                  img = row["image"]
+                  label_id = row["label"]
+                  label_name = ds.features["label"].int2str(label_id)
+
+                  buf = io.BytesIO()
+                  img.save(buf, format="JPEG")
+                  b = buf.getvalue()
+                  digest = hashlib.sha256(b).hexdigest()
+
+                  raw_key = f"{raw_prefix}/{idx:06d}_{digest[:12]}.jpg"
+                  obj_key = f"objects/sha256/{digest[0:2]}/{digest[2:4]}/{digest}.jpg"
+
+                  put_bytes(settings.swift_training_container, raw_key, b, "image/jpeg")
+                  put_bytes(settings.swift_training_container, obj_key, b, "image/jpeg")
+
+                  objects.append(
+                      {
+                          "object_key": obj_key,
+                          "label": label_name,
+                          "split": "train",
+                          "checksum": digest,
+                          "source_upload_id": None,
+                          "width": img.width,
+                          "height": img.height,
+                      }
+                  )
+
+              table = pa.Table.from_pylist(objects)
+              out = io.BytesIO()
+              pq.write_table(table, out)
+
+              manifest_key = "versions/food101-sample-v1/manifest.parquet"
+              meta_key = "versions/food101-sample-v1/meta.json"
+
+              put_bytes(
+                  settings.swift_training_container,
+                  manifest_key,
+                  out.getvalue(),
+                  "application/octet-stream",
+              )
+              put_text(
+                  settings.swift_training_container,
+                  meta_key,
+                  json.dumps(
+                      {
+                          "dataset": "food101-sample",
+                          "version": "food101-sample-v1",
+                          "split": split,
+                          "count": len(objects),
+                          "raw_prefix": raw_prefix,
+                          "created_at": datetime.utcnow().isoformat() + "Z",
+                      },
+                      indent=2,
+                  ),
+                  "application/json",
+              )
+
+              print("DONE", settings.swift_training_container, manifest_key, meta_key)
+              PY

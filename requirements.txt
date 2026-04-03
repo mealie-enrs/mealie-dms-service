@@ -8,3 +8,5 @@ python-swiftclient==4.6.0
 python-keystoneclient==5.5.0
 pyarrow==19.0.1
 ijson==3.3.0
+datasets==2.20.0
+Pillow==10.4.0
