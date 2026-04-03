@@ -1,0 +1,9 @@
+fastapi==0.115.12
+uvicorn[standard]==0.34.0
+sqlalchemy==2.0.40
+psycopg[binary]==3.2.6
+pydantic-settings==2.8.1
+celery[redis]==5.4.0
+python-swiftclient==4.6.0
+python-keystoneclient==5.5.0
+pyarrow==19.0.1

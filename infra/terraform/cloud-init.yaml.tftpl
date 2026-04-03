@@ -1,0 +1,10 @@
+#cloud-config
+package_update: true
+packages:
+  - curl
+  - jq
+
+runcmd:
+  - [ sh, -c, "DEVICE=$(lsblk -ndo NAME,TYPE | awk '$2==\"disk\"{print $1}' | grep -E '^vd[b-z]|sd[b-z]|nvme1n1' | head -n1); if [ -n \"$DEVICE\" ]; then DEV=/dev/$DEVICE; blkid $DEV || mkfs.ext4 -F $DEV; mkdir -p /var/lib/rancher/k3s/storage; grep -q \"$DEV\" /etc/fstab || echo \"$DEV /var/lib/rancher/k3s/storage ext4 defaults,nofail 0 2\" >> /etc/fstab; mount -a; fi" ]
+  - [ sh, -c, "curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC='server --write-kubeconfig-mode 644' sh -" ]
+  - [ sh, -c, "mkdir -p /home/${ssh_user}/.kube && cp /etc/rancher/k3s/k3s.yaml /home/${ssh_user}/.kube/config && chown -R ${ssh_user}:${ssh_user} /home/${ssh_user}/.kube" ]

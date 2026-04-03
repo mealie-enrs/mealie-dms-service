@@ -1,0 +1,29 @@
+# Chameleon OpenStack auth
+os_auth_url     = "https://chi.uc.chameleoncloud.org:5000/v3"
+os_region_name  = "CHI@UC"
+os_project_name = "CHI-251409"
+
+# Prefer application credentials for automation
+os_application_credential_id     = "replace-me"
+os_application_credential_secret = "replace-me"
+
+# Infra naming (proj26 convention)
+instance_name = "proj26-dms-k3s"
+
+# Compute/network
+image_name   = "CC-Ubuntu22.04"
+flavor_name  = "baremetal"
+network_name = "sharednet1"
+ssh_key_name = "nidhish-mac"
+reservation_id = "fbf57b65-d92e-420e-a96d-5868360d5748"
+
+# Floating IP pool
+external_network_name = "public"
+
+# Security scope (restrict to your IP/CIDR)
+allowed_ssh_cidr = "YOUR.PUBLIC.IP.ADDR/32"
+allowed_api_cidr = "YOUR.PUBLIC.IP.ADDR/32"
+
+# Persistent storage
+volume_size_gb = 100
+ssh_user       = "cc"

@@ -1,0 +1,89 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dms-scheduler
+  namespace: dms
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dms-scheduler
+  template:
+    metadata:
+      labels:
+        app: dms-scheduler
+    spec:
+      containers:
+        - name: dms-scheduler
+          image: ghcr.io/your-org/dms-app:latest
+          imagePullPolicy: Always
+          env:
+            - name: DMS_ROLE
+              value: scheduler
+            - name: REDIS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: dms-config
+                  key: REDIS_URL
+            - name: CELERY_BROKER_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: dms-config
+                  key: CELERY_BROKER_URL
+            - name: CELERY_RESULT_BACKEND
+              valueFrom:
+                configMapKeyRef:
+                  name: dms-config
+                  key: CELERY_RESULT_BACKEND
+            - name: SWIFT_AUTH_URL
+              valueFrom:
+                secretKeyRef:
+                  name: dms-secrets
+                  key: SWIFT_AUTH_URL
+            - name: SWIFT_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: dms-secrets
+                  key: SWIFT_USERNAME
+            - name: SWIFT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: dms-secrets
+                  key: SWIFT_PASSWORD
+            - name: SWIFT_USER_UPLOADS_CONTAINER
+              valueFrom:
+                configMapKeyRef:
+                  name: dms-config
+                  key: SWIFT_USER_UPLOADS_CONTAINER
+            - name: SWIFT_TRAINING_CONTAINER
+              valueFrom:
+                configMapKeyRef:
+                  name: dms-config
+                  key: SWIFT_TRAINING_CONTAINER
+            - name: DATABASE_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: dms-config
+                  key: DATABASE_HOST
+            - name: DATABASE_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: dms-config
+                  key: DATABASE_PORT
+            - name: DATABASE_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: dms-config
+                  key: DATABASE_NAME
+            - name: DATABASE_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: dms-config
+                  key: DATABASE_USER
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: dms-secrets
+                  key: DATABASE_PASSWORD
+            - name: DATABASE_URL
+              value: postgresql+psycopg://$(DATABASE_USER):$(DATABASE_PASSWORD)@$(DATABASE_HOST):$(DATABASE_PORT)/$(DATABASE_NAME)

@@ -1,0 +1,101 @@
+services:
+  dms-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: dms-app:local
+    container_name: dms-api
+    environment:
+      DMS_ROLE: api
+      DATABASE_URL: postgresql+psycopg://dms:dms@postgres:5432/dms
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      SWIFT_AUTH_URL: ${SWIFT_AUTH_URL}
+      SWIFT_USERNAME: ${SWIFT_USERNAME}
+      SWIFT_PASSWORD: ${SWIFT_PASSWORD}
+      SWIFT_USER_UPLOADS_CONTAINER: ${SWIFT_USER_UPLOADS_CONTAINER:-proj26-user-uploads}
+      SWIFT_TRAINING_CONTAINER: ${SWIFT_TRAINING_CONTAINER:-proj26-training-data}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+  dms-worker:
+    image: dms-app:local
+    container_name: dms-worker
+    environment:
+      DMS_ROLE: worker
+      DATABASE_URL: postgresql+psycopg://dms:dms@postgres:5432/dms
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      SWIFT_AUTH_URL: ${SWIFT_AUTH_URL}
+      SWIFT_USERNAME: ${SWIFT_USERNAME}
+      SWIFT_PASSWORD: ${SWIFT_PASSWORD}
+      SWIFT_USER_UPLOADS_CONTAINER: ${SWIFT_USER_UPLOADS_CONTAINER:-proj26-user-uploads}
+      SWIFT_TRAINING_CONTAINER: ${SWIFT_TRAINING_CONTAINER:-proj26-training-data}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  dms-scheduler:
+    image: dms-app:local
+    container_name: dms-scheduler
+    environment:
+      DMS_ROLE: scheduler
+      DATABASE_URL: postgresql+psycopg://dms:dms@postgres:5432/dms
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      SWIFT_AUTH_URL: ${SWIFT_AUTH_URL}
+      SWIFT_USERNAME: ${SWIFT_USERNAME}
+      SWIFT_PASSWORD: ${SWIFT_PASSWORD}
+      SWIFT_USER_UPLOADS_CONTAINER: ${SWIFT_USER_UPLOADS_CONTAINER:-proj26-user-uploads}
+      SWIFT_TRAINING_CONTAINER: ${SWIFT_TRAINING_CONTAINER:-proj26-training-data}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: dms-postgres
+    environment:
+      POSTGRES_USER: dms
+      POSTGRES_PASSWORD: dms
+      POSTGRES_DB: dms
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dms -d dms"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: dms-redis
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
+volumes:
+  pgdata:
