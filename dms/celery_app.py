@@ -10,6 +10,8 @@ celery_app = Celery(
     backend=settings.celery_result_backend,
 )
 
+celery_app.conf.imports = ("dms.tasks",)
+celery_app.conf.task_default_queue = "dms-default"
 celery_app.conf.task_routes = {"dms.tasks.*": {"queue": "dms-default"}}
 celery_app.conf.beat_schedule = {
     "cleanup-stale-uploads-hourly": {
