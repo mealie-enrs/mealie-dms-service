@@ -1,6 +1,7 @@
 name: Deploy DMS on main merge
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
     paths:
