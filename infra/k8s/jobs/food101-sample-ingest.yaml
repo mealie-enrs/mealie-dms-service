@@ -7,6 +7,11 @@ spec:
   backoffLimit: 0
   template:
     spec:
+      dnsPolicy: None
+      dnsConfig:
+        nameservers:
+          - 1.1.1.1
+          - 8.8.8.8
       restartPolicy: Never
       containers:
         - name: ingest
