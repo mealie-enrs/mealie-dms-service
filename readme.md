@@ -190,3 +190,26 @@ If you want Chameleon deployment with Terraform and Kubernetes instead of Docker
 - Terraform stack: `infra/terraform`
 - Kubernetes manifests: `infra/k8s`
 - Full runbook: `infra/README.md`
+
+## CI/CD on main
+
+Auto-deploy workflow is at `.github/workflows/deploy-main.yml`.
+When a commit lands on `main` with app or manifest changes, it:
+
+1. Builds/pushes `ghcr.io/nidhish1/dms-app` (`:latest` and `:<git-sha>`)
+2. Updates k8s deployments (`dms-api`, `dms-worker`, `dms-scheduler`) to `:<git-sha>`
+3. Waits for rollout success
+
+Required GitHub repo secret:
+
+- `KUBECONFIG_B64`: base64 of your kubeconfig file
+
+Create it from laptop:
+
+```bash
+base64 -i "$HOME/.kube/dms-k3s.yaml" | pbcopy
+```
+
+Then in GitHub repo settings:
+
+`Settings -> Secrets and variables -> Actions -> New repository secret`
