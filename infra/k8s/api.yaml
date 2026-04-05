@@ -30,7 +30,7 @@ spec:
     spec:
       containers:
         - name: dms-api
-          image: ghcr.io/your-org/dms-app:latest
+          image: ghcr.io/nidhish1/dms-app:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 8000
@@ -57,16 +57,16 @@ spec:
                 secretKeyRef:
                   name: dms-secrets
                   key: SWIFT_AUTH_URL
-            - name: SWIFT_USERNAME
+            - name: SWIFT_APP_CREDENTIAL_ID
               valueFrom:
                 secretKeyRef:
                   name: dms-secrets
-                  key: SWIFT_USERNAME
-            - name: SWIFT_PASSWORD
+                  key: SWIFT_APP_CREDENTIAL_ID
+            - name: SWIFT_APP_CREDENTIAL_SECRET
               valueFrom:
                 secretKeyRef:
                   name: dms-secrets
-                  key: SWIFT_PASSWORD
+                  key: SWIFT_APP_CREDENTIAL_SECRET
             - name: SWIFT_USER_UPLOADS_CONTAINER
               valueFrom:
                 configMapKeyRef:

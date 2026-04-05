@@ -5,18 +5,37 @@ from datetime import datetime
 from pathlib import Path
 
 import swiftclient
+from keystoneauth1 import session as ks_session
+from keystoneauth1.identity import v3 as v3_identity
 
 from dms.config import settings
 
 
 def _swift_conn():
+    if settings.swift_app_credential_id and settings.swift_app_credential_secret:
+        auth = v3_identity.ApplicationCredential(
+            auth_url=settings.swift_auth_url,
+            application_credential_id=settings.swift_app_credential_id,
+            application_credential_secret=settings.swift_app_credential_secret,
+        )
+        sess = ks_session.Session(auth=auth)
+        return swiftclient.Connection(session=sess)
+
     if not (settings.swift_auth_url and settings.swift_username and settings.swift_password):
         return None
+    os_options = {}
+    if settings.swift_project_name:
+        os_options["project_name"] = settings.swift_project_name
+    if settings.swift_user_domain_name:
+        os_options["user_domain_name"] = settings.swift_user_domain_name
+    if settings.swift_project_domain_name:
+        os_options["project_domain_name"] = settings.swift_project_domain_name
     return swiftclient.Connection(
         authurl=settings.swift_auth_url,
         user=settings.swift_username,
         key=settings.swift_password,
         auth_version="3",
+        os_options=os_options,
     )
 
 
@@ -44,7 +63,10 @@ def copy_object(container_from: str, key_from: str, container_to: str, key_to: s
 def require_swift() -> swiftclient.Connection:
     conn = _swift_conn()
     if conn is None:
-        raise RuntimeError("Swift is not configured. Set SWIFT_AUTH_URL, SWIFT_USERNAME, SWIFT_PASSWORD.")
+        raise RuntimeError(
+            "Swift is not configured. Set SWIFT_APP_CREDENTIAL_ID + SWIFT_APP_CREDENTIAL_SECRET, "
+            "or SWIFT_AUTH_URL + SWIFT_USERNAME + SWIFT_PASSWORD."
+        )
     return conn
 
 
