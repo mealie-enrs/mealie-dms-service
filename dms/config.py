@@ -18,6 +18,11 @@ class Settings(BaseSettings):
     swift_password: str | None = None
     swift_user_uploads_container: str = "proj26-user-uploads"
     swift_training_container: str = "proj26-training-data"
+    swift_recipe1m_prefix: str = "recipe1m"
+
+    kaggle_username: str | None = None
+    kaggle_key: str | None = None
+    kaggle_download_dir: str = "/tmp/dms-kaggle-downloads"
 
 
 settings = Settings()

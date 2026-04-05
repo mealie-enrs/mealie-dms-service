@@ -39,6 +39,12 @@ services:
       SWIFT_PASSWORD: ${SWIFT_PASSWORD}
       SWIFT_USER_UPLOADS_CONTAINER: ${SWIFT_USER_UPLOADS_CONTAINER:-proj26-user-uploads}
       SWIFT_TRAINING_CONTAINER: ${SWIFT_TRAINING_CONTAINER:-proj26-training-data}
+      SWIFT_RECIPE1M_PREFIX: ${SWIFT_RECIPE1M_PREFIX:-recipe1m}
+      KAGGLE_USERNAME: ${KAGGLE_USERNAME:-}
+      KAGGLE_KEY: ${KAGGLE_KEY:-}
+      KAGGLE_DOWNLOAD_DIR: ${KAGGLE_DOWNLOAD_DIR:-/tmp/dms-kaggle-downloads}
+    volumes:
+      - kaggle_downloads:/tmp/dms-kaggle-downloads
     depends_on:
       postgres:
         condition: service_healthy
@@ -99,3 +105,4 @@ services:
 
 volumes:
   pgdata:
+  kaggle_downloads:

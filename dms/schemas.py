@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from pydantic import BaseModel, Field
 
 
@@ -31,3 +33,21 @@ class Recipe1MSampleIngestRequest(BaseModel):
     raw_prefix: str = Field(default="raw/recipe1m")
     target_container: str | None = None
     auto_publish_version: str | None = None
+
+
+class KaggleDatasetDownloadRequest(BaseModel):
+    """Download a Kaggle dataset on the worker and optionally upload to Swift."""
+
+    dataset_slug: str = Field(
+        default="pes12017000148/food-ingredients-and-recipe-dataset-with-images",
+        min_length=3,
+        description="Kaggle dataset slug (<owner>/<dataset>).",
+    )
+    upload_to_swift: bool = Field(
+        default=True,
+        description="Upload downloaded files to Swift under SWIFT_RECIPE1M_PREFIX.",
+    )
+    swift_subpath: str = Field(
+        default="",
+        description="Optional sub-path under the prefix, e.g. 'kaggle/food-images' -> recipe1m/kaggle/food-images/...",
+    )

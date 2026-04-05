@@ -10,12 +10,18 @@ from dms.models import Dataset, DatasetVersion, Job, JobStatus, Upload, UploadSt
 from dms.schemas import (
     ApproveUploadRequest,
     DatasetCreateRequest,
+    KaggleDatasetDownloadRequest,
     PublishVersionRequest,
     Recipe1MSampleIngestRequest,
     UploadInitRequest,
     UploadInitResponse,
 )
-from dms.tasks import ingest_recipe1m_sample, process_upload_approval, publish_dataset_version
+from dms.tasks import (
+    download_kaggle_dataset,
+    ingest_recipe1m_sample,
+    process_upload_approval,
+    publish_dataset_version,
+)
 
 app = FastAPI(title="DMS API")
 
@@ -157,6 +163,31 @@ def ingest_recipe1m(
         payload.raw_prefix,
         payload.target_container,
         payload.auto_publish_version,
+    )
+    job.celery_task_id = task.id
+    db.commit()
+
+    return {"job_id": job.id, "task_id": task.id, "status": job.status}
+
+
+@app.post("/kaggle/download")
+def kaggle_download(payload: KaggleDatasetDownloadRequest, db: Session = Depends(get_db)) -> dict:
+    job = Job(
+        kind="kaggle_dataset_download",
+        status=JobStatus.queued,
+        payload_json=json.dumps(payload.model_dump()),
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow(),
+    )
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+
+    task = download_kaggle_dataset.delay(
+        job.id,
+        payload.dataset_slug,
+        payload.upload_to_swift,
+        payload.swift_subpath,
     )
     job.celery_task_id = task.id
     db.commit()

@@ -54,6 +54,7 @@ External storage:
 - `GET /datasets/{dataset_id}/versions`: list published versions
 - `POST /datasets/{dataset_id}/publish`: publish version asynchronously
 - `POST /datasets/{dataset_id}/ingest/recipe1m`: ingest tiny Recipe1M sample asynchronously
+- `POST /kaggle/download`: download a Kaggle dataset on the worker (optional Swift upload)
 - `GET /jobs/{job_id}`: track background job
 
 ## Data Ownership
@@ -94,6 +95,7 @@ versions/v2/manifest.parquet
 versions/v2/meta.json
 shards/v1/train-000000.tar
 exports/v1/...
+recipe1m/...                    # Kaggle / Recipe1M data files
 ```
 
 ## Versioning Model
@@ -102,6 +104,25 @@ exports/v1/...
 - Dataset versions are **manifests**, not full data copies.
 - `v2` is produced by applying metadata membership changes to `v1`.
 - Bulk training reads should fetch from object storage, not stream through API.
+
+## Kaggle dataset download (server-side)
+
+The worker can download any Kaggle dataset using `kagglehub` and optionally upload files to Swift under `recipe1m/`.
+
+**Prerequisites:** set `KAGGLE_USERNAME` and `KAGGLE_KEY` on the worker (K8s Secret or Compose env).
+
+```bash
+curl -X POST "http://localhost:8000/kaggle/download" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "dataset_slug": "pes12017000148/food-ingredients-and-recipe-dataset-with-images",
+    "upload_to_swift": true,
+    "swift_subpath": "kaggle/food-images"
+  }'
+# Track: GET /jobs/{job_id}
+```
+
+Files are uploaded to `recipe1m/kaggle/food-images/...` inside `SWIFT_TRAINING_CONTAINER`.
 
 ## Recipe1M tiny sample ingest
 

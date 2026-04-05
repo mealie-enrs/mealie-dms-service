@@ -1,8 +1,10 @@
 import io
 import json
+import logging
 import os
 import subprocess
 from datetime import datetime, timedelta
+from pathlib import Path
 
 import pyarrow as pa
 import pyarrow.parquet as pq
@@ -12,7 +14,7 @@ from dms.config import settings
 from dms.db import SessionLocal
 from dms.models import Dataset, DatasetItem, DatasetVersion, Job, JobStatus, Object, Upload, UploadStatus
 from dms.recipe1m import iter_sample_image_urls, upload_curated_object, upload_raw_sample
-from dms.storage import copy_object, put_bytes, put_text, write_version_meta
+from dms.storage import copy_object, ensure_container, put_bytes, put_file_path, put_text, write_version_meta
 
 
 def _set_job_state(db, job_id: int, status: JobStatus, message: str | None = None) -> None:
@@ -293,6 +295,62 @@ def ingest_recipe1m_sample(
             JobStatus.succeeded,
             f"ingested={len(created_object_ids)} existing={skipped_existing} failed={failures}",
         )
+    except Exception as exc:
+        db.rollback()
+        _set_job_state(db, job_id, JobStatus.failed, f"failed: {exc}")
+        raise
+    finally:
+        db.close()
+
+
+@celery_app.task(name="dms.tasks.download_kaggle_dataset")
+def download_kaggle_dataset(
+    job_id: int,
+    dataset_slug: str = "pes12017000148/food-ingredients-and-recipe-dataset-with-images",
+    upload_to_swift: bool = True,
+    swift_subpath: str = "",
+) -> None:
+    log = logging.getLogger(__name__)
+    db = SessionLocal()
+    try:
+        _set_job_state(db, job_id, JobStatus.running, f"downloading kaggle dataset {dataset_slug}")
+
+        if not settings.kaggle_username or not settings.kaggle_key:
+            _set_job_state(db, job_id, JobStatus.failed, "KAGGLE_USERNAME / KAGGLE_KEY not set on this worker")
+            return
+
+        os.environ.setdefault("KAGGLE_USERNAME", settings.kaggle_username)
+        os.environ.setdefault("KAGGLE_KEY", settings.kaggle_key)
+
+        import kagglehub  # noqa: E402 — deferred so env vars are set first
+
+        log.info("kagglehub: downloading %s", dataset_slug)
+        local_path = kagglehub.dataset_download(dataset_slug)
+        local_path = Path(local_path)
+        log.info("kagglehub: downloaded to %s", local_path)
+
+        files = sorted(f for f in local_path.rglob("*") if f.is_file())
+        log.info("kagglehub: %d files found", len(files))
+
+        uploaded = 0
+        if upload_to_swift:
+            container = settings.swift_training_container
+            ensure_container(container)
+            prefix = settings.swift_recipe1m_prefix.strip("/")
+            sub = swift_subpath.strip("/")
+            base_key = "/".join(p for p in (prefix, sub) if p)
+
+            for f in files:
+                rel = f.relative_to(local_path)
+                key = f"{base_key}/{rel}" if base_key else str(rel)
+                log.info("uploading %s -> %s/%s", f.name, container, key)
+                put_file_path(container, key, f)
+                uploaded += 1
+
+        msg = f"downloaded={len(files)} local_path={local_path}"
+        if upload_to_swift:
+            msg += f" uploaded={uploaded} container={settings.swift_training_container}"
+        _set_job_state(db, job_id, JobStatus.succeeded, msg)
     except Exception as exc:
         db.rollback()
         _set_job_state(db, job_id, JobStatus.failed, f"failed: {exc}")

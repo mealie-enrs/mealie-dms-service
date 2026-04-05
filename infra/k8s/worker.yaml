@@ -87,3 +87,17 @@ spec:
                   key: DATABASE_PASSWORD
             - name: DATABASE_URL
               value: postgresql+psycopg://$(DATABASE_USER):$(DATABASE_PASSWORD)@$(DATABASE_HOST):$(DATABASE_PORT)/$(DATABASE_NAME)
+            - name: SWIFT_RECIPE1M_PREFIX
+              value: recipe1m
+            - name: KAGGLE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: dms-secrets
+                  key: KAGGLE_USERNAME
+            - name: KAGGLE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: dms-secrets
+                  key: KAGGLE_KEY
+            - name: KAGGLE_DOWNLOAD_DIR
+              value: /tmp/dms-kaggle-downloads

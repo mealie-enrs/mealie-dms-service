@@ -1,6 +1,8 @@
 import hashlib
 import json
+import mimetypes
 from datetime import datetime
+from pathlib import Path
 
 import swiftclient
 
@@ -37,6 +39,36 @@ def copy_object(container_from: str, key_from: str, container_to: str, key_to: s
     if conn is None:
         return
     conn.copy_object(container_from, key_from, destination=f"{container_to}/{key_to}")
+
+
+def require_swift() -> swiftclient.Connection:
+    conn = _swift_conn()
+    if conn is None:
+        raise RuntimeError("Swift is not configured. Set SWIFT_AUTH_URL, SWIFT_USERNAME, SWIFT_PASSWORD.")
+    return conn
+
+
+def ensure_container(container: str) -> None:
+    conn = require_swift()
+    conn.put_container(container)
+
+
+def put_file_path(
+    container: str,
+    key: str,
+    path: str | Path,
+    content_type: str | None = None,
+) -> None:
+    """Upload a local file without loading it all into memory."""
+    conn = require_swift()
+    p = Path(path)
+    size = p.stat().st_size
+    ct = content_type
+    if ct is None:
+        guessed, _ = mimetypes.guess_type(p.name)
+        ct = guessed or "application/octet-stream"
+    with open(p, "rb") as fh:
+        conn.put_object(container, key, contents=fh, content_length=size, content_type=ct)
 
 
 def make_object_key_from_bytes(raw_bytes: bytes, extension: str = "jpg") -> tuple[str, str]:
