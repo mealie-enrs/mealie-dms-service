@@ -1,5 +1,7 @@
 # DMS (Single App, Multi-Role Runtime)
 
+<!-- CI: push to main triggers deploy when matched paths change -->
+
 This repository now defines a **single DMS application** deployed as three runtime roles:
 
 - `dms-api`: HTTP control plane (uploads, datasets, versions, approvals, export requests)
