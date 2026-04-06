@@ -8,7 +8,7 @@ case "$ROLE" in
     exec uvicorn dms.main:app --host 0.0.0.0 --port 8000
     ;;
   worker)
-    exec celery -A dms.celery_app:celery_app worker --loglevel=INFO -Q dms-default,celery
+    exec celery -A dms.celery_app:celery_app worker --loglevel=INFO -Q dms-default,celery --concurrency="${CELERY_CONCURRENCY:-2}"
     ;;
   scheduler)
     exec celery -A dms.celery_app:celery_app beat --loglevel=INFO

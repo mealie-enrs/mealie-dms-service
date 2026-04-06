@@ -27,6 +27,8 @@ spec:
           env:
             - name: DMS_ROLE
               value: worker
+            - name: CELERY_CONCURRENCY
+              value: "2"
             - name: REDIS_URL
               valueFrom:
                 configMapKeyRef:
