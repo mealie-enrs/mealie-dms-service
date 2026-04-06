@@ -1,0 +1,175 @@
+{
+  "info": {
+    "_postman_id": "a1b2c3d4-dms-api-mealie",
+    "name": "DMS API (mealie)",
+    "description": "Data Management Service — uploads, datasets, batch compile (train/val/test), Kaggle ingest, jobs.\n\nSet `baseUrl` to your API (e.g. `http://192.5.87.69:30080` or `http://localhost:8000`).\nUse `dataset_id`, `upload_id`, `job_id` from responses in sibling requests.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://192.5.87.69:30080" },
+    { "key": "dataset_id", "value": "1" },
+    { "key": "upload_id", "value": "1" },
+    { "key": "job_id", "value": "1" }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "GET healthz",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/healthz"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Batch pipeline (Part A)",
+      "description": "Compile versioned train/val/test manifest from Kaggle food-images CSV + images in Swift (`versions/{version}/manifest.parquet`, `meta.json`).",
+      "item": [
+        {
+          "name": "POST create dataset",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"food-images-v1\",\n  \"description\": \"Kaggle food-images with train/val/test splits\"\n}"
+            },
+            "url": "{{baseUrl}}/datasets",
+            "description": "Returns `dataset_id` — copy into collection variable `dataset_id`."
+          }
+        },
+        {
+          "name": "POST compile training dataset",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"version\": \"v1\",\n  \"container\": null\n}"
+            },
+            "url": "{{baseUrl}}/datasets/{{dataset_id}}/compile",
+            "description": "`container`: omit or null for SWIFT_TRAINING_CONTAINER. Returns `job_id` for polling."
+          }
+        },
+        {
+          "name": "GET dataset versions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/datasets/{{dataset_id}}/versions",
+            "description": "Lists published DatasetVersion rows (manifest_key, meta_key) after compile completes."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Jobs",
+      "item": [
+        {
+          "name": "GET job by id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/jobs/{{job_id}}",
+            "description": "Poll until `status` is `succeeded` or `failed`. Kinds: compile_training_dataset, kaggle_dataset_download, upload_approval, publish_version, recipe1m_ingest."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Datasets (other)",
+      "item": [
+        {
+          "name": "POST publish version (manual object ids)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"version\": \"v1\",\n  \"include_object_ids\": [1, 2, 3]\n}"
+            },
+            "url": "{{baseUrl}}/datasets/{{dataset_id}}/publish"
+          }
+        },
+        {
+          "name": "POST ingest Recipe1M sample",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"manifest_source\": \"https://example.com/manifest.jsonl\",\n  \"sample_size\": 100,\n  \"raw_prefix\": \"raw/recipe1m\",\n  \"target_container\": null,\n  \"auto_publish_version\": null\n}"
+            },
+            "url": "{{baseUrl}}/datasets/{{dataset_id}}/ingest/recipe1m"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Uploads",
+      "item": [
+        {
+          "name": "POST uploads init",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": \"demo-user\",\n  \"filename\": \"photo.jpg\"\n}"
+            },
+            "url": "{{baseUrl}}/uploads/init",
+            "description": "Returns `upload_id` and Swift `incoming_key` for client PUT to object store."
+          }
+        },
+        {
+          "name": "POST upload approval",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"approve\": true\n}"
+            },
+            "url": "{{baseUrl}}/uploads/{{upload_id}}/approval"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Kaggle",
+      "item": [
+        {
+          "name": "POST kaggle download",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"dataset_slug\": \"pes12017000148/food-ingredients-and-recipe-dataset-with-images\",\n  \"upload_to_swift\": true,\n  \"swift_subpath\": \"kaggle-food-images\"\n}"
+            },
+            "url": "{{baseUrl}}/kaggle/download",
+            "description": "Worker needs KAGGLE_USERNAME / KAGGLE_KEY. Poll GET /jobs/{job_id}."
+          }
+        }
+      ]
+    }
+  ]
+}
