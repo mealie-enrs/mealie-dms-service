@@ -62,6 +62,12 @@ def copy_object(container_from: str, key_from: str, container_to: str, key_to: s
     conn.copy_object(container_from, key_from, destination=f"{container_to}/{key_to}")
 
 
+def get_bytes(container: str, key: str) -> bytes:
+    conn = require_swift()
+    _, data = conn.get_object(container, key)
+    return data
+
+
 def require_swift() -> swiftclient.Connection:
     conn = _swift_conn()
     if conn is None:

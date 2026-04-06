@@ -2,10 +2,12 @@ import json
 import uuid
 from datetime import datetime
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
 from sqlalchemy.orm import Session
 
+from dms.config import settings
 from dms.db import Base, engine, get_db
+from dms import inference
 from dms.models import Dataset, DatasetVersion, Job, JobStatus, Upload, UploadStatus
 from dms.schemas import (
     ApproveUploadRequest,
@@ -38,6 +40,74 @@ def startup() -> None:
 @app.get("/healthz")
 def healthz() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/inference/index")
+def inference_index() -> dict:
+    try:
+        return inference.load_index_meta()
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@app.post("/inference/index/reload")
+def reload_inference_index() -> dict:
+    try:
+        index = inference.load_index(force_reload=True)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return {
+        "status": "reloaded",
+        "items": len(index.object_keys),
+        "embedding_dim": int(index.embeddings.shape[1]) if index.embeddings.size else 0,
+        "source_manifest_key": index.source_manifest_key,
+    }
+
+
+@app.post("/inference/features")
+async def inference_features(
+    request: Request,
+    file: UploadFile | None = File(default=None),
+    image_base64: str | None = Form(default=None),
+    top_k: int | None = Form(default=None),
+) -> dict:
+    top_k_value = top_k if top_k is not None else settings.inference_top_k_default
+
+    if request.headers.get("content-type", "").startswith("application/json"):
+        payload = await request.json()
+        image_base64 = payload.get("image_base64")
+        top_k_value = int(payload.get("top_k", top_k_value))
+
+    if top_k_value < 1 or top_k_value > settings.inference_top_k_max:
+        raise HTTPException(
+            status_code=422,
+            detail=f"top_k must be between 1 and {settings.inference_top_k_max}",
+        )
+
+    try:
+        file_bytes = await file.read() if file is not None else None
+        raw_bytes = inference.decode_image_bytes(file_bytes=file_bytes, image_base64=image_base64)
+        embedding = inference.compute_embedding(raw_bytes)
+        index = inference.load_index()
+        matches = inference.cosine_top_k(embedding, index, top_k_value)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    return {
+        "model": settings.inference_model_name,
+        "embedding_dim": int(embedding.shape[0]),
+        "embedding": embedding.astype(float).tolist(),
+        "top_k": top_k_value,
+        "matches": matches,
+    }
 
 
 @app.post("/uploads/init", response_model=UploadInitResponse)

@@ -57,6 +57,7 @@ External storage:
 - `POST /datasets/{dataset_id}/publish`: publish version asynchronously
 - `POST /datasets/{dataset_id}/ingest/recipe1m`: ingest tiny Recipe1M sample asynchronously
 - `POST /datasets/{dataset_id}/compile/recipenlg`: curate raw RecipeNLG CSV into versioned parquet
+- `POST /inference/features`: compute an image embedding and nearest recipe matches from a prebuilt feature index
 - `POST /kaggle/download`: download a Kaggle dataset on the worker (optional Swift upload)
 - `GET /jobs/{job_id}`: track background job
 
@@ -247,6 +248,35 @@ The generator:
 - calls `POST /uploads/{upload_id}/approval`
 
 It uses Recipe1M images already present in object storage as seed images and writes a local summary JSON file at the end.
+
+## Online feature computation
+
+Build a feature index from the versioned Recipe1M manifest:
+
+```bash
+python scripts/build_feature_index.py --max-items 500
+```
+
+Call the inference endpoint with an uploaded image:
+
+```bash
+curl -X POST "http://localhost:8000/inference/features" \
+  -F "top_k=5" \
+  -F "file=@/path/to/food-image.jpg"
+```
+
+Or with base64 JSON:
+
+```bash
+curl -X POST "http://localhost:8000/inference/features" \
+  -H "Content-Type: application/json" \
+  -d '{"image_base64":"<base64>", "top_k":5}'
+```
+
+This path uses a pretrained ResNet-50 encoder and returns:
+
+- an image embedding vector
+- top-k nearest matches from the prebuilt feature index
 
 ### Optional bonus quality gates (Soda)
 

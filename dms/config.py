@@ -24,6 +24,13 @@ class Settings(BaseSettings):
     swift_user_uploads_container: str = "proj26-user-uploads"
     swift_training_container: str = "proj26-training-data"
     swift_recipe1m_prefix: str = "recipe1m"
+    inference_model_name: str = "resnet50-pretrained"
+    inference_image_size: int = 224
+    inference_top_k_default: int = 5
+    inference_top_k_max: int = 25
+    inference_manifest_key: str = "recipe1m_versions/v1/manifest.parquet"
+    inference_index_key: str = "recipe1m_versions/v1/feature_index.npz"
+    inference_index_meta_key: str = "recipe1m_versions/v1/feature_index_meta.json"
 
     kaggle_username: str | None = None
     kaggle_key: str | None = None
