@@ -35,6 +35,16 @@ class Recipe1MSampleIngestRequest(BaseModel):
     auto_publish_version: str | None = None
 
 
+class CompileTrainingDatasetRequest(BaseModel):
+    """Compile a versioned train/val/test dataset from the Kaggle food-images data."""
+
+    version: str = Field(default="v1", min_length=1, description="Version tag, e.g. v1, v2.")
+    container: str | None = Field(
+        default=None,
+        description="Swift container (defaults to SWIFT_TRAINING_CONTAINER).",
+    )
+
+
 class KaggleDatasetDownloadRequest(BaseModel):
     """Download a Kaggle dataset on the worker and optionally upload to Swift."""
 

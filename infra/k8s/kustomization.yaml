@@ -10,6 +10,6 @@ resources:
   - worker.yaml
   - scheduler.yaml
 images:
-  - name: ghcr.io/your-org/dms-app
-    newName: ghcr.io/your-org/dms-app
+  - name: ghcr.io/nidhish1/dms-app
+    newName: ghcr.io/nidhish1/dms-app
     newTag: latest

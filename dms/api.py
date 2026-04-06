@@ -9,6 +9,7 @@ from dms.db import Base, engine, get_db
 from dms.models import Dataset, DatasetVersion, Job, JobStatus, Upload, UploadStatus
 from dms.schemas import (
     ApproveUploadRequest,
+    CompileTrainingDatasetRequest,
     DatasetCreateRequest,
     KaggleDatasetDownloadRequest,
     PublishVersionRequest,
@@ -17,6 +18,7 @@ from dms.schemas import (
     UploadInitResponse,
 )
 from dms.tasks import (
+    compile_training_dataset,
     download_kaggle_dataset,
     ingest_recipe1m_sample,
     process_upload_approval,
@@ -163,6 +165,36 @@ def ingest_recipe1m(
         payload.raw_prefix,
         payload.target_container,
         payload.auto_publish_version,
+    )
+    job.celery_task_id = task.id
+    db.commit()
+
+    return {"job_id": job.id, "task_id": task.id, "status": job.status}
+
+
+@app.post("/datasets/{dataset_id}/compile")
+def compile_dataset(
+    dataset_id: int,
+    payload: CompileTrainingDatasetRequest,
+    db: Session = Depends(get_db),
+) -> dict:
+    dataset = db.get(Dataset, dataset_id)
+    if not dataset:
+        raise HTTPException(status_code=404, detail="dataset not found")
+
+    job = Job(
+        kind="compile_training_dataset",
+        status=JobStatus.queued,
+        payload_json=json.dumps(payload.model_dump()),
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow(),
+    )
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+
+    task = compile_training_dataset.delay(
+        job.id, dataset_id, payload.version, payload.container
     )
     job.celery_task_id = task.id
     db.commit()

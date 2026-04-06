@@ -359,6 +359,58 @@ def download_kaggle_dataset(
         db.close()
 
 
+@celery_app.task(name="dms.tasks.compile_training_dataset")
+def compile_training_dataset(
+    job_id: int,
+    dataset_id: int,
+    version: str = "v1",
+    container: str | None = None,
+) -> None:
+    from dms.batch_pipeline import compile_dataset, write_manifest
+
+    db = SessionLocal()
+    try:
+        _set_job_state(db, job_id, JobStatus.running, "compiling training dataset")
+
+        dataset = db.get(Dataset, dataset_id)
+        if not dataset:
+            _set_job_state(db, job_id, JobStatus.failed, "dataset not found")
+            return
+
+        target = container or settings.swift_training_container
+        records, stats = compile_dataset(container=target, version=version)
+
+        if not records:
+            _set_job_state(db, job_id, JobStatus.failed, "no records after candidate selection")
+            return
+
+        manifest_key, meta_key = write_manifest(records, stats, container=target, version=version)
+
+        dv = DatasetVersion(
+            dataset_id=dataset_id,
+            version=version,
+            manifest_key=manifest_key,
+            meta_key=meta_key,
+        )
+        db.add(dv)
+        db.commit()
+
+        msg = (
+            f"version={version} records={stats.matched} "
+            f"train={stats.train} val={stats.val} test={stats.test} "
+            f"skipped_no_img={stats.skipped_no_image} "
+            f"skipped_small={stats.skipped_too_small} "
+            f"skipped_dup={stats.skipped_duplicate}"
+        )
+        _set_job_state(db, job_id, JobStatus.succeeded, msg)
+    except Exception as exc:
+        db.rollback()
+        _set_job_state(db, job_id, JobStatus.failed, f"failed: {exc}")
+        raise
+    finally:
+        db.close()
+
+
 @celery_app.task(name="dms.tasks.cleanup_stale_uploads")
 def cleanup_stale_uploads() -> None:
     db = SessionLocal()
