@@ -54,6 +54,7 @@ External storage:
 - `GET /datasets/{dataset_id}/versions`: list published versions
 - `POST /datasets/{dataset_id}/publish`: publish version asynchronously
 - `POST /datasets/{dataset_id}/ingest/recipe1m`: ingest tiny Recipe1M sample asynchronously
+- `POST /datasets/{dataset_id}/compile/recipenlg`: curate raw RecipeNLG CSV into versioned parquet
 - `POST /kaggle/download`: download a Kaggle dataset on the worker (optional Swift upload)
 - `GET /jobs/{job_id}`: track background job
 
@@ -93,6 +94,9 @@ recipe1m_versions/v1/manifest.parquet
 recipe1m_versions/v1/meta.json
 recipe1m_versions/v2/manifest.parquet
 recipe1m_versions/v2/meta.json
+recipenlg/...
+recipenlg_versions/v1/recipes.parquet
+recipenlg_versions/v1/meta.json
 shards/v1/train-000000.tar
 exports/v1/...
 recipe1m/...                    # Kaggle / Recipe1M data files
@@ -139,6 +143,27 @@ curl -X POST "http://localhost:8000/kaggle/download" \
 ```
 
 That uploads the dataset under `recipenlg/...` so it stays separate from `recipe1m/...`.
+
+## RecipeNLG curation
+
+Curate the raw RecipeNLG CSV into a cleaned, split parquet table:
+
+```bash
+curl -X POST "http://localhost:8000/datasets/<dataset_id>/compile/recipenlg" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "version": "v1",
+    "container": "proj26-training-data",
+    "source_key": "recipenlg/RecipeNLG_dataset.csv"
+  }'
+```
+
+Outputs:
+
+- `recipenlg_versions/v1/recipes.parquet`
+- `recipenlg_versions/v1/meta.json`
+
+The curation keeps recipe text fields, removes rows missing title or ingredients, deduplicates by title+ingredients, and assigns deterministic train/val/test splits.
 
 ## Recipe1M tiny sample ingest
 

@@ -428,6 +428,64 @@ def compile_training_dataset(
         db.close()
 
 
+@celery_app.task(name="dms.tasks.compile_recipenlg_dataset")
+def compile_recipenlg_dataset(
+    job_id: int,
+    dataset_id: int,
+    version: str = "v1",
+    container: str | None = None,
+    source_key: str = "recipenlg/RecipeNLG_dataset.csv",
+) -> None:
+    from dms.recipenlg_pipeline import compile_recipenlg_dataset as build_rows
+    from dms.recipenlg_pipeline import write_recipenlg_outputs
+
+    db = SessionLocal()
+    try:
+        _set_job_state(db, job_id, JobStatus.running, "compiling RecipeNLG dataset")
+
+        dataset = db.get(Dataset, dataset_id)
+        if not dataset:
+            _set_job_state(db, job_id, JobStatus.failed, "dataset not found")
+            return
+
+        target = container or settings.swift_training_container
+        rows, stats = build_rows(container=target, source_key=source_key)
+        if not rows:
+            _set_job_state(db, job_id, JobStatus.failed, "no RecipeNLG rows after filtering")
+            return
+
+        parquet_key, meta_key = write_recipenlg_outputs(
+            rows,
+            stats,
+            version=version,
+            container=target,
+            source_key=source_key,
+        )
+        dv = DatasetVersion(
+            dataset_id=dataset_id,
+            version=version,
+            manifest_key=parquet_key,
+            meta_key=meta_key,
+        )
+        db.add(dv)
+        db.commit()
+
+        msg = (
+            f"version={version} rows={stats.output_rows} "
+            f"train={stats.train} val={stats.val} test={stats.test} "
+            f"dropped_missing_title={stats.dropped_missing_title} "
+            f"dropped_missing_ingredients={stats.dropped_missing_ingredients} "
+            f"dropped_duplicates={stats.dropped_duplicates}"
+        )
+        _set_job_state(db, job_id, JobStatus.succeeded, msg)
+    except Exception as exc:
+        db.rollback()
+        _set_job_state(db, job_id, JobStatus.failed, f"failed: {exc}")
+        raise
+    finally:
+        db.close()
+
+
 @celery_app.task(name="dms.tasks.cleanup_stale_uploads")
 def cleanup_stale_uploads() -> None:
     db = SessionLocal()

@@ -71,6 +71,26 @@
       ]
     },
     {
+      "name": "RecipeNLG",
+      "item": [
+        {
+          "name": "POST compile RecipeNLG dataset",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"version\": \"v1\",\n  \"container\": \"proj26-training-data\",\n  \"source_key\": \"recipenlg/RecipeNLG_dataset.csv\"\n}"
+            },
+            "url": "{{baseUrl}}/datasets/{{dataset_id}}/compile/recipenlg",
+            "description": "Curate the raw RecipeNLG CSV into recipenlg_versions/{version}/recipes.parquet and meta.json."
+          }
+        }
+      ]
+    },
+    {
       "name": "Jobs",
       "item": [
         {

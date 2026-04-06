@@ -45,6 +45,19 @@ class CompileTrainingDatasetRequest(BaseModel):
     )
 
 
+class CompileRecipeNLGDatasetRequest(BaseModel):
+    version: str = Field(default="v1", min_length=1, description="Version tag, e.g. v1.")
+    container: str | None = Field(
+        default=None,
+        description="Swift container (defaults to SWIFT_TRAINING_CONTAINER).",
+    )
+    source_key: str = Field(
+        default="recipenlg/RecipeNLG_dataset.csv",
+        min_length=1,
+        description="Swift object key for the raw RecipeNLG CSV.",
+    )
+
+
 class KaggleDatasetDownloadRequest(BaseModel):
     """Download a Kaggle dataset on the worker and optionally upload to Swift."""
 
