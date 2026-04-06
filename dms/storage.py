@@ -10,6 +10,8 @@ from keystoneauth1.identity import v3 as v3_identity
 
 from dms.config import settings
 
+VERSION_PREFIX = "recipe1m_versions"
+
 
 def _swift_conn():
     if settings.swift_app_credential_id and settings.swift_app_credential_secret:
@@ -100,7 +102,7 @@ def make_object_key_from_bytes(raw_bytes: bytes, extension: str = "jpg") -> tupl
 
 
 def write_version_meta(version: str, dataset_name: str, object_count: int) -> str:
-    meta_key = f"versions/{version}/meta.json"
+    meta_key = f"{VERSION_PREFIX}/{version}/meta.json"
     payload = {
         "dataset": dataset_name,
         "version": version,

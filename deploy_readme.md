@@ -473,6 +473,6 @@ proj26-obj-store/
   raw/recipe1m/<run-id>/...
   raw/recipe1m/<run-id>/ingest_summary.json
   objects/sha256/ab/cd/<hash>.jpg
-  versions/v1/manifest.parquet
-  versions/v1/meta.json
+  recipe1m_versions/v1/manifest.parquet
+  recipe1m_versions/v1/meta.json
 ```

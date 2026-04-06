@@ -27,7 +27,7 @@
     },
     {
       "name": "Batch pipeline (Part A)",
-      "description": "Compile versioned train/val/test manifest from Kaggle food-images CSV + images in Swift (`versions/{version}/manifest.parquet`, `meta.json`).",
+      "description": "Compile versioned train/val/test manifest from Kaggle food-images CSV + images in Swift (`recipe1m_versions/{version}/manifest.parquet`, `meta.json`).",
       "item": [
         {
           "name": "POST create dataset",

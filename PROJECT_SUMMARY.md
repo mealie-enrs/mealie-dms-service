@@ -33,14 +33,14 @@ Container: **`proj26-obj-store`** (also designed for `proj26-user-uploads` and `
 | `incoming/{user_id}/{uuid}-{filename}` | Raw user uploads (untrusted) |
 | `objects/sha256/{ab}/{cd}/{sha256}.jpg` | Immutable curated blobs (content-addressed) |
 | `raw/{dataset}/{timestamp}/...` | Staging copies from ingest jobs |
-| `versions/{version}/manifest.parquet` | Frozen dataset snapshot (one row per training example) |
-| `versions/{version}/meta.json` | Version metadata (counts, timestamps, dataset name) |
+| `recipe1m_versions/{version}/manifest.parquet` | Frozen dataset snapshot (one row per training example) |
+| `recipe1m_versions/{version}/meta.json` | Version metadata (counts, timestamps, dataset name) |
 
 ## Current data
 
 - **Food-101 sample** (500 images) ingested from laptop into `proj26-obj-store`
-- Manifest: `versions/food101-sample-v1/manifest.parquet` (500 rows)
-- Meta: `versions/food101-sample-v1/meta.json`
+- Manifest: `recipe1m_versions/food101-sample-v1/manifest.parquet` (500 rows)
+- Meta: `recipe1m_versions/food101-sample-v1/meta.json`
 - Raw: `raw/food101/20260403T101210Z/000000_xxx.jpg` … `000499_xxx.jpg`
 - Curated: `objects/sha256/xx/yy/{sha256}.jpg`
 

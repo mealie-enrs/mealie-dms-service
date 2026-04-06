@@ -33,7 +33,7 @@
 - External data (Kaggle food-images dataset) is ingested via `POST /kaggle/download` into `proj26-training-data/recipe1m/`
 - User-uploaded images that are approved (`POST /uploads/{id}/approval`) get promoted from `proj26-user-uploads` to `proj26-training-data/objects/sha256/...`
 - A batch pipeline compiles a versioned dataset from these objects, applying candidate selection and train/val/test splitting
-- The versioned dataset is published as a Parquet manifest (`versions/v2/manifest.parquet`) that points to the immutable objects
+- The versioned dataset is published as a Parquet manifest (`recipe1m_versions/v2/manifest.parquet`) that points to the immutable objects
 - Training jobs read from the manifest + object store
 
 ---
@@ -121,4 +121,3 @@ Formal document with:
 2. **B — Data generator** (relatively simple script)
 3. **C — Online feature computation** (needs pre-trained model, most complex)
 4. **D — Data design document** (write based on what exists)
-

@@ -23,6 +23,7 @@ log = logging.getLogger(__name__)
 
 SPLIT_RATIOS = {"train": 0.70, "val": 0.15, "test": 0.15}
 MIN_IMAGE_BYTES = 1024  # skip images smaller than 1 KB (likely corrupt/placeholder)
+VERSION_PREFIX = "recipe1m_versions"
 
 CSV_OBJECT_KEY = (
     "recipe1m/kaggle-food-images/"
@@ -204,7 +205,7 @@ def write_manifest(
     buf = io.BytesIO()
     pq.write_table(table, buf)
 
-    manifest_key = f"versions/{version}/manifest.parquet"
+    manifest_key = f"{VERSION_PREFIX}/{version}/manifest.parquet"
     put_bytes(container, manifest_key, buf.getvalue(), "application/octet-stream")
     log.info("Wrote manifest: %s (%d rows)", manifest_key, len(rows))
 
@@ -224,7 +225,7 @@ def write_manifest(
         "split_strategy": "deterministic hash on recipe title (70/15/15)",
         "leakage_avoidance": "split by recipe identity — same recipe always in same split",
     }
-    meta_key = f"versions/{version}/meta.json"
+    meta_key = f"{VERSION_PREFIX}/{version}/meta.json"
     put_text(container, meta_key, json.dumps(meta, indent=2), "application/json")
     log.info("Wrote meta: %s", meta_key)
 

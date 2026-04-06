@@ -16,6 +16,9 @@ from dms.models import Dataset, DatasetItem, DatasetVersion, Job, JobStatus, Obj
 from dms.recipe1m import iter_sample_image_urls, upload_curated_object, upload_raw_sample
 from dms.storage import copy_object, ensure_container, put_bytes, put_file_path, put_text, write_version_meta
 
+REPORT_PREFIX = "recipe1m_reports"
+VERSION_PREFIX = "recipe1m_versions"
+
 
 def _set_job_state(db, job_id: int, status: JobStatus, message: str | None = None) -> None:
     job = db.get(Job, job_id)
@@ -86,7 +89,7 @@ def _publish_dataset_version_records(
     buffer = io.BytesIO()
     pq.write_table(table, buffer)
 
-    manifest_key = f"versions/{version}/manifest.parquet"
+    manifest_key = f"{VERSION_PREFIX}/{version}/manifest.parquet"
     put_bytes(
         settings.swift_training_container,
         manifest_key,
@@ -442,7 +445,7 @@ def daily_integrity_check() -> None:
         }
         put_text(
             settings.swift_training_container,
-            "reports/daily_integrity.json",
+            f"{REPORT_PREFIX}/daily_integrity.json",
             json.dumps(report, indent=2),
             "application/json",
         )

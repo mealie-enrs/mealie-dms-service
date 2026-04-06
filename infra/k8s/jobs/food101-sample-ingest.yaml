@@ -80,8 +80,8 @@ spec:
               out = io.BytesIO()
               pq.write_table(table, out)
 
-              manifest_key = "versions/food101-sample-v1/manifest.parquet"
-              meta_key = "versions/food101-sample-v1/meta.json"
+              manifest_key = "recipe1m_versions/food101-sample-v1/manifest.parquet"
+              meta_key = "recipe1m_versions/food101-sample-v1/meta.json"
 
               put_bytes(
                   settings.swift_training_container,

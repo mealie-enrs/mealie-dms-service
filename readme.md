@@ -89,10 +89,10 @@ rejected/{upload_id}.jpg
 
 ```text
 objects/sha256/ab/cd/<hash>.jpg
-versions/v1/manifest.parquet
-versions/v1/meta.json
-versions/v2/manifest.parquet
-versions/v2/meta.json
+recipe1m_versions/v1/manifest.parquet
+recipe1m_versions/v1/meta.json
+recipe1m_versions/v2/manifest.parquet
+recipe1m_versions/v2/meta.json
 shards/v1/train-000000.tar
 exports/v1/...
 recipe1m/...                    # Kaggle / Recipe1M data files

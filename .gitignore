@@ -1,5 +1,15 @@
+.DS_Store
+kubeconfig.local.yaml
+mealie-ml/
+scripts/fetch_k3s_kubeconfig.sh
+secret-rahil/
 
 # local secrets
 secrets/
 *.tfvars
 .env
+.DS_Store
+kubeconfig.local.yaml
+mealie-ml/
+scripts/fetch_k3s_kubeconfig.sh
+secret-rahil/
