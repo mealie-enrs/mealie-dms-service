@@ -55,9 +55,13 @@ class KaggleDatasetDownloadRequest(BaseModel):
     )
     upload_to_swift: bool = Field(
         default=True,
-        description="Upload downloaded files to Swift under SWIFT_RECIPE1M_PREFIX.",
+        description="Upload downloaded files to Swift.",
+    )
+    swift_prefix: str | None = Field(
+        default=None,
+        description="Top-level Swift prefix for this dataset, e.g. 'recipe1m' or 'recipenlg'.",
     )
     swift_subpath: str = Field(
         default="",
-        description="Optional sub-path under the prefix, e.g. 'kaggle/food-images' -> recipe1m/kaggle/food-images/...",
+        description="Optional sub-path under the prefix, e.g. 'kaggle/food-images' -> recipenlg/kaggle/food-images/...",
     )

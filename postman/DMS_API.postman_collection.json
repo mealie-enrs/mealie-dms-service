@@ -163,7 +163,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"dataset_slug\": \"pes12017000148/food-ingredients-and-recipe-dataset-with-images\",\n  \"upload_to_swift\": true,\n  \"swift_subpath\": \"kaggle-food-images\"\n}"
+              "raw": "{\n  \"dataset_slug\": \"pes12017000148/food-ingredients-and-recipe-dataset-with-images\",\n  \"upload_to_swift\": true,\n  \"swift_prefix\": \"recipe1m\",\n  \"swift_subpath\": \"kaggle-food-images\"\n}"
             },
             "url": "{{baseUrl}}/kaggle/download",
             "description": "Worker needs KAGGLE_USERNAME / KAGGLE_KEY. Poll GET /jobs/{job_id}."

@@ -2,6 +2,7 @@ import io
 import json
 import logging
 import os
+import re
 import subprocess
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -27,6 +28,15 @@ def _set_job_state(db, job_id: int, status: JobStatus, message: str | None = Non
     job.status = status
     job.message = message
     db.commit()
+
+
+def _default_swift_prefix_for_slug(dataset_slug: str) -> str:
+    if dataset_slug == "pes12017000148/food-ingredients-and-recipe-dataset-with-images":
+        return settings.swift_recipe1m_prefix.strip("/") or "recipe1m"
+
+    dataset_name = dataset_slug.rsplit("/", 1)[-1].strip().lower()
+    normalized = re.sub(r"[^a-z0-9]+", "_", dataset_name).strip("_")
+    return normalized or "kaggle_dataset"
 
 
 def _run_publish_quality_checks(rows: list[dict]) -> None:
@@ -311,6 +321,7 @@ def download_kaggle_dataset(
     job_id: int,
     dataset_slug: str = "pes12017000148/food-ingredients-and-recipe-dataset-with-images",
     upload_to_swift: bool = True,
+    swift_prefix: str | None = None,
     swift_subpath: str = "",
 ) -> None:
     log = logging.getLogger(__name__)
@@ -339,7 +350,7 @@ def download_kaggle_dataset(
         if upload_to_swift:
             container = settings.swift_training_container
             ensure_container(container)
-            prefix = settings.swift_recipe1m_prefix.strip("/")
+            prefix = (swift_prefix or _default_swift_prefix_for_slug(dataset_slug)).strip("/")
             sub = swift_subpath.strip("/")
             base_key = "/".join(p for p in (prefix, sub) if p)
 
@@ -352,7 +363,10 @@ def download_kaggle_dataset(
 
         msg = f"downloaded={len(files)} local_path={local_path}"
         if upload_to_swift:
-            msg += f" uploaded={uploaded} container={settings.swift_training_container}"
+            msg += (
+                f" uploaded={uploaded} container={settings.swift_training_container}"
+                f" prefix={prefix or '.'}"
+            )
         _set_job_state(db, job_id, JobStatus.succeeded, msg)
     except Exception as exc:
         db.rollback()

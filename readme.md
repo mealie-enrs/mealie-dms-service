@@ -107,7 +107,7 @@ recipe1m/...                    # Kaggle / Recipe1M data files
 
 ## Kaggle dataset download (server-side)
 
-The worker can download any Kaggle dataset using `kagglehub` and optionally upload files to Swift under `recipe1m/`.
+The worker can download any Kaggle dataset using `kagglehub` and optionally upload files to Swift under a dataset-specific prefix.
 
 **Prerequisites:** set `KAGGLE_USERNAME` and `KAGGLE_KEY` on the worker (K8s Secret or Compose env).
 
@@ -117,12 +117,28 @@ curl -X POST "http://localhost:8000/kaggle/download" \
   -d '{
     "dataset_slug": "pes12017000148/food-ingredients-and-recipe-dataset-with-images",
     "upload_to_swift": true,
+    "swift_prefix": "recipe1m",
     "swift_subpath": "kaggle/food-images"
   }'
 # Track: GET /jobs/{job_id}
 ```
 
 Files are uploaded to `recipe1m/kaggle/food-images/...` inside `SWIFT_TRAINING_CONTAINER`.
+
+RecipeNLG example:
+
+```bash
+curl -X POST "http://localhost:8000/kaggle/download" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "dataset_slug": "paultimothymooney/recipenlg",
+    "upload_to_swift": true,
+    "swift_prefix": "recipenlg",
+    "swift_subpath": ""
+  }'
+```
+
+That uploads the dataset under `recipenlg/...` so it stays separate from `recipe1m/...`.
 
 ## Recipe1M tiny sample ingest
 

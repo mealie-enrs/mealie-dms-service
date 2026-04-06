@@ -219,6 +219,7 @@ def kaggle_download(payload: KaggleDatasetDownloadRequest, db: Session = Depends
         job.id,
         payload.dataset_slug,
         payload.upload_to_swift,
+        payload.swift_prefix,
         payload.swift_subpath,
     )
     job.celery_task_id = task.id
