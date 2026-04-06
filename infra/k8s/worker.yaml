@@ -17,6 +17,13 @@ spec:
         - name: dms-worker
           image: ghcr.io/nidhish1/dms-app:latest
           imagePullPolicy: Always
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "1Gi"
+            limits:
+              cpu: "2"
+              memory: "4Gi"
           env:
             - name: DMS_ROLE
               value: worker
