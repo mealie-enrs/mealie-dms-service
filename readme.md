@@ -13,6 +13,7 @@ Infra dependencies:
 - `postgres`: metadata source of truth
 - `redis`: async broker/backend
 - `metabase`: optional UI for browsing tables, building saved questions, and creating curated views
+- `mealie`: optional upstream recipe-manager UI running as a separate service in the cluster
 
 External storage:
 
@@ -85,6 +86,15 @@ Suggested first curated views in Metabase:
 - job status summary by kind
 - uploads by status and user
 - objects by source and checksum
+
+## Mealie
+
+The upstream Mealie application can also be deployed into the same Kubernetes cluster as an independent service.
+
+- Kubernetes URL: `http://<floating-ip>:30082`
+- Manifest: [infra/k8s/mealie.yaml](/Users/mudrex/Desktop/mealie/infra/k8s/mealie.yaml)
+
+This deployment uses the official `ghcr.io/mealie-recipes/mealie` container with a persistent volume mounted at `/app/data`.
 
 ## Data Ownership
 
@@ -227,6 +237,26 @@ curl -X POST "http://localhost:8000/datasets/<dataset_id>/ingest/recipe1m" \
 Cloud-side note: ingestion runs in the worker pod and supports both:
 - JSONL manifest URLs/files (one JSON object per line)
 - Large JSON array metadata sources (for example `layer2+.json`) via streaming parser
+
+## Deterministic upload traffic generator
+
+Use this script to simulate a fixed amount of "production" upload traffic without running forever:
+
+```bash
+python scripts/generate_upload_traffic.py \
+  --base-url http://localhost:8000 \
+  --iterations 20 \
+  --users 4 \
+  --interval-seconds 1.0
+```
+
+The generator:
+
+- calls `POST /uploads/init`
+- uploads a deterministically augmented image to Swift using the returned `incoming_key`
+- calls `POST /uploads/{upload_id}/approval`
+
+It uses Recipe1M images already present in object storage as seed images and writes a local summary JSON file at the end.
 
 ### Optional bonus quality gates (Soda)
 
