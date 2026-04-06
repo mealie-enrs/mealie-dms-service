@@ -36,11 +36,11 @@ spec:
             - containerPort: 8000
           resources:
             requests:
-              cpu: "250m"
-              memory: "512Mi"
-            limits:
               cpu: "500m"
-              memory: "1Gi"
+              memory: "2Gi"
+            limits:
+              cpu: "1"
+              memory: "4Gi"
           env:
             - name: DMS_ROLE
               value: api
@@ -115,11 +115,13 @@ spec:
             httpGet:
               path: /healthz
               port: 8000
-            initialDelaySeconds: 5
+            initialDelaySeconds: 30
+            timeoutSeconds: 5
             periodSeconds: 10
           livenessProbe:
             httpGet:
               path: /healthz
               port: 8000
-            initialDelaySeconds: 15
+            initialDelaySeconds: 60
+            timeoutSeconds: 5
             periodSeconds: 20

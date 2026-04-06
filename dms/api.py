@@ -1,3 +1,4 @@
+import logging
 import json
 import uuid
 from datetime import datetime
@@ -30,11 +31,17 @@ from dms.tasks import (
 )
 
 app = FastAPI(title="DMS API")
+logger = logging.getLogger(__name__)
 
 
 @app.on_event("startup")
 def startup() -> None:
     Base.metadata.create_all(bind=engine)
+    try:
+        inference.load_model()
+        logger.info("Preloaded inference model '%s' during startup.", settings.inference_model_name)
+    except Exception:
+        logger.exception("Inference model preload failed during startup; requests will retry on demand.")
 
 
 @app.get("/healthz")
