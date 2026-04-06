@@ -13,7 +13,6 @@ Infra dependencies:
 - `postgres`: metadata source of truth
 - `redis`: async broker/backend
 - `metabase`: optional UI for browsing tables, building saved questions, and creating curated views
-- `mealie`: optional upstream recipe-manager UI running as a separate service in the cluster
 
 External storage:
 
@@ -86,15 +85,6 @@ Suggested first curated views in Metabase:
 - job status summary by kind
 - uploads by status and user
 - objects by source and checksum
-
-## Mealie
-
-The upstream Mealie application can also be deployed into the same Kubernetes cluster as an independent service.
-
-- Kubernetes URL: `http://<floating-ip>:30082`
-- Manifest: [infra/k8s/mealie.yaml](/Users/mudrex/Desktop/mealie/infra/k8s/mealie.yaml)
-
-This deployment uses the official `ghcr.io/mealie-recipes/mealie` container with a persistent volume mounted at `/app/data`.
 
 ## Data Ownership
 

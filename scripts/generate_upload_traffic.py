@@ -15,16 +15,31 @@ from __future__ import annotations
 import argparse
 import io
 import json
+import os
+import subprocess
 import sys
+import tempfile
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from urllib import error, request
+from urllib import request
 
-from PIL import Image, ImageEnhance, ImageOps
+try:
+    from PIL import Image, ImageEnhance, ImageOps
+except ImportError:  # Pillow is optional; we can fall back to using real images as-is.
+    Image = None
+    ImageEnhance = None
+    ImageOps = None
 
-from dms.config import settings
-from dms.storage import require_swift
+try:
+    from dms.config import settings
+except Exception:  # pragma: no cover - fallback for lightweight demo environments
+    settings = None
+
+try:
+    from dms.storage import require_swift
+except Exception:  # pragma: no cover - fallback for lightweight demo environments
+    require_swift = None
 
 SOURCE_PREFIX = "recipe1m/kaggle-food-images/Food Images/Food Images/"
 
@@ -53,30 +68,61 @@ def _http_json(method: str, url: str, payload: dict) -> dict:
 
 
 def _list_source_keys(container: str, prefix: str, limit: int) -> list[str]:
-    conn = require_swift()
-    keys: list[str] = []
-    marker = ""
-    while len(keys) < limit:
-        _, objects = conn.get_container(container, prefix=prefix, limit=10000, marker=marker)
-        if not objects:
-            break
-        for obj in objects:
-            name = obj["name"]
-            if name.lower().endswith((".jpg", ".jpeg", ".png")):
-                keys.append(name)
-                if len(keys) >= limit:
-                    break
-        marker = objects[-1]["name"]
-    return sorted(keys)
+    if require_swift is not None:
+        conn = require_swift()
+        keys: list[str] = []
+        marker = ""
+        while len(keys) < limit:
+            _, objects = conn.get_container(container, prefix=prefix, limit=10000, marker=marker)
+            if not objects:
+                break
+            for obj in objects:
+                name = obj["name"]
+                if name.lower().endswith((".jpg", ".jpeg", ".png")):
+                    keys.append(name)
+                    if len(keys) >= limit:
+                        break
+            marker = objects[-1]["name"]
+        return sorted(keys)
+
+    result = subprocess.run(
+        ["openstack", "object", "list", container, "--prefix", prefix, "-f", "value", "-c", "Name"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    keys = [
+        line.strip()
+        for line in result.stdout.splitlines()
+        if line.strip().lower().endswith((".jpg", ".jpeg", ".png"))
+    ]
+    return sorted(keys)[:limit]
 
 
 def _download_image(container: str, key: str) -> bytes:
-    conn = require_swift()
-    _, data = conn.get_object(container, key)
-    return data
+    if require_swift is not None:
+        conn = require_swift()
+        _, data = conn.get_object(container, key)
+        return data
+
+    with tempfile.NamedTemporaryFile(delete=False) as tmp:
+        tmp_path = tmp.name
+    try:
+        subprocess.run(
+            ["openstack", "object", "save", container, key, "--file", tmp_path],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        return Path(tmp_path).read_bytes()
+    finally:
+        Path(tmp_path).unlink(missing_ok=True)
 
 
 def _augment_image(raw: bytes, iteration: int) -> bytes:
+    if Image is None or ImageEnhance is None or ImageOps is None:
+        return raw
+
     image = Image.open(io.BytesIO(raw)).convert("RGB")
 
     # Deterministic augmentation schedule based only on iteration.
@@ -105,8 +151,23 @@ def _augment_image(raw: bytes, iteration: int) -> bytes:
 
 
 def _swift_put(container: str, key: str, content: bytes) -> None:
-    conn = require_swift()
-    conn.put_object(container, key, contents=content, content_type="image/jpeg")
+    if require_swift is not None:
+        conn = require_swift()
+        conn.put_object(container, key, contents=content, content_type="image/jpeg")
+        return
+
+    with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
+        tmp.write(content)
+        tmp_path = tmp.name
+    try:
+        subprocess.run(
+            ["openstack", "object", "create", container, tmp_path, "--name", key],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    finally:
+        Path(tmp_path).unlink(missing_ok=True)
 
 
 def main() -> None:
@@ -117,7 +178,7 @@ def main() -> None:
     parser.add_argument("--interval-seconds", type=float, default=1.0, help="Sleep between iterations")
     parser.add_argument(
         "--source-container",
-        default=settings.swift_training_container,
+        default=(settings.swift_training_container if settings else os.getenv("SWIFT_TRAINING_CONTAINER", "proj26-training-data")),
         help="Swift container used as the source of seed images",
     )
     parser.add_argument(
@@ -131,6 +192,11 @@ def main() -> None:
         help="Local JSON summary output",
     )
     args = parser.parse_args()
+    uploads_container = (
+        settings.swift_user_uploads_container
+        if settings
+        else os.getenv("SWIFT_USER_UPLOADS_CONTAINER", "proj26-user-uploads")
+    )
 
     source_keys = _list_source_keys(args.source_container, args.source_prefix, limit=max(args.iterations, 32))
     if not source_keys:
@@ -152,7 +218,7 @@ def main() -> None:
 
         incoming_key = init_resp["incoming_key"]
         upload_id = int(init_resp["upload_id"])
-        _swift_put(settings.swift_user_uploads_container, incoming_key, augmented)
+        _swift_put(uploads_container, incoming_key, augmented)
 
         approval_resp = _http_json(
             "POST",

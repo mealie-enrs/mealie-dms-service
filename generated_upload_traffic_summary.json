@@ -1,0 +1,190 @@
+{
+  "base_url": "http://192.5.87.69:30080",
+  "iterations": 20,
+  "users": 4,
+  "interval_seconds": 1.0,
+  "source_container": "proj26-training-data",
+  "source_prefix": "recipe1m/kaggle-food-images/Food Images/Food Images/",
+  "results": [
+    {
+      "iteration": 0,
+      "user_id": "demo-user-01",
+      "source_key": "recipe1m/kaggle-food-images/Food Images/Food Images/-bloody-mary-tomato-toast-with-celery-and-horseradish-56389813.jpg",
+      "incoming_key": "incoming/demo-user-01/2f99b8ab-ee53-4672-8eed-59a0a0d96056-synthetic-0000.jpg",
+      "upload_id": 23,
+      "approval_job_id": 21,
+      "filename": "synthetic-0000.jpg"
+    },
+    {
+      "iteration": 1,
+      "user_id": "demo-user-02",
+      "source_key": "recipe1m/kaggle-food-images/Food Images/Food Images/-burnt-carrots-and-parsnips-56390131.jpg",
+      "incoming_key": "incoming/demo-user-02/85fd62cb-cd02-42d6-8ddb-b2b1c90f9cca-synthetic-0001.jpg",
+      "upload_id": 24,
+      "approval_job_id": 22,
+      "filename": "synthetic-0001.jpg"
+    },
+    {
+      "iteration": 2,
+      "user_id": "demo-user-03",
+      "source_key": "recipe1m/kaggle-food-images/Food Images/Food Images/-candy-corn-frozen-citrus-cream-pops-368770.jpg",
+      "incoming_key": "incoming/demo-user-03/009b5a1b-f128-4fda-b087-a01c2939f088-synthetic-0002.jpg",
+      "upload_id": 25,
+      "approval_job_id": 23,
+      "filename": "synthetic-0002.jpg"
+    },
+    {
+      "iteration": 3,
+      "user_id": "demo-user-04",
+      "source_key": "recipe1m/kaggle-food-images/Food Images/Food Images/-candy-corn-pumpkin-blondies-51254510.jpg",
+      "incoming_key": "incoming/demo-user-04/10f6f32d-3a3f-4b55-89e6-d9f3db2a8374-synthetic-0003.jpg",
+      "upload_id": 26,
+      "approval_job_id": 24,
+      "filename": "synthetic-0003.jpg"
+    },
+    {
+      "iteration": 4,
+      "user_id": "demo-user-01",
+      "source_key": "recipe1m/kaggle-food-images/Food Images/Food Images/-carbonnade-a-la-flamande-short-ribs-358557.jpg",
+      "incoming_key": "incoming/demo-user-01/333287b4-0d34-4912-be30-3d30775c8f25-synthetic-0004.jpg",
+      "upload_id": 27,
+      "approval_job_id": 25,
+      "filename": "synthetic-0004.jpg"
+    },
+    {
+      "iteration": 5,
+      "user_id": "demo-user-02",
+      "source_key": "recipe1m/kaggle-food-images/Food Images/Food Images/-chickpea-barley-and-feta-salad-51239040.jpg",
+      "incoming_key": "incoming/demo-user-02/466f7ec6-eacb-4081-bd15-e6bc76408fde-synthetic-0005.jpg",
+      "upload_id": 28,
+      "approval_job_id": 26,
+      "filename": "synthetic-0005.jpg"
+    },
+    {
+      "iteration": 6,
+      "user_id": "demo-user-03",
+      "source_key": "recipe1m/kaggle-food-images/Food Images/Food Images/-chickpea-pancakes-with-leeks-squash-and-yogurt-51260630.jpg",
+      "incoming_key": "incoming/demo-user-03/ca1df9a8-b475-4507-9af5-ec0439e28b1f-synthetic-0006.jpg",
+      "upload_id": 29,
+      "approval_job_id": 27,
+      "filename": "synthetic-0006.jpg"
+    },
+    {
+      "iteration": 7,
+      "user_id": "demo-user-04",
+      "source_key": "recipe1m/kaggle-food-images/Food Images/Food Images/-cod-with-mussels-chorizo-fried-croutons-and-saffron-mayonnaise-355204.jpg",
+      "incoming_key": "incoming/demo-user-04/92047ec9-8146-45cf-abd6-1d21c5f9c66c-synthetic-0007.jpg",
+      "upload_id": 30,
+      "approval_job_id": 28,
+      "filename": "synthetic-0007.jpg"
+    },
+    {
+      "iteration": 8,
+      "user_id": "demo-user-01",
+      "source_key": "recipe1m/kaggle-food-images/Food Images/Food Images/-em-ba-em-s-ultimate-lobster-rolls-51169080.jpg",
+      "incoming_key": "incoming/demo-user-01/de7c5264-ef19-441c-a46d-2c2abe0a3684-synthetic-0008.jpg",
+      "upload_id": 31,
+      "approval_job_id": 29,
+      "filename": "synthetic-0008.jpg"
+    },
+    {
+      "iteration": 9,
+      "user_id": "demo-user-02",
+      "source_key": "recipe1m/kaggle-food-images/Food Images/Food Images/-em-gourmet-live-em-s-first-birthday-cake-367789.jpg",
+      "incoming_key": "incoming/demo-user-02/63e768d2-2b9c-4aba-91f9-1f9a810a5c5b-synthetic-0009.jpg",
+      "upload_id": 32,
+      "approval_job_id": 30,
+      "filename": "synthetic-0009.jpg"
+    },
+    {
+      "iteration": 10,
+      "user_id": "demo-user-03",
+      "source_key": "recipe1m/kaggle-food-images/Food Images/Food Images/-em-polow-em-persian-rice-with-pistachios-and-dill-352469.jpg",
+      "incoming_key": "incoming/demo-user-03/cbb23def-d5bd-4c22-9406-28f69e3d2787-synthetic-0010.jpg",
+      "upload_id": 33,
+      "approval_job_id": 31,
+      "filename": "synthetic-0010.jpg"
+    },
+    {
+      "iteration": 11,
+      "user_id": "demo-user-04",
+      "source_key": "recipe1m/kaggle-food-images/Food Images/Food Images/-em-stracciatella-tortoni-em-cake-with-espresso-fudge-sauce-242605.jpg",
+      "incoming_key": "incoming/demo-user-04/07c28781-cb1c-42ae-adbb-4c156ccc3de3-synthetic-0011.jpg",
+      "upload_id": 34,
+      "approval_job_id": 32,
+      "filename": "synthetic-0011.jpg"
+    },
+    {
+      "iteration": 12,
+      "user_id": "demo-user-01",
+      "source_key": "recipe1m/kaggle-food-images/Food Images/Food Images/-fried-chicken-51238060.jpg",
+      "incoming_key": "incoming/demo-user-01/9a0d4cf8-775a-4de5-8e33-93f4deeac7c6-synthetic-0012.jpg",
+      "upload_id": 35,
+      "approval_job_id": 33,
+      "filename": "synthetic-0012.jpg"
+    },
+    {
+      "iteration": 13,
+      "user_id": "demo-user-02",
+      "source_key": "recipe1m/kaggle-food-images/Food Images/Food Images/-fritto-misto-51252640.jpg",
+      "incoming_key": "incoming/demo-user-02/7043a269-aa7c-4a44-9573-ce820d7bad84-synthetic-0013.jpg",
+      "upload_id": 36,
+      "approval_job_id": 34,
+      "filename": "synthetic-0013.jpg"
+    },
+    {
+      "iteration": 14,
+      "user_id": "demo-user-03",
+      "source_key": "recipe1m/kaggle-food-images/Food Images/Food Images/-halibut-confit-with-leeks-coriander-and-lemon-51252690.jpg",
+      "incoming_key": "incoming/demo-user-03/eb81c8bf-3865-41e9-849c-e22c5f7cf502-synthetic-0014.jpg",
+      "upload_id": 37,
+      "approval_job_id": 35,
+      "filename": "synthetic-0014.jpg"
+    },
+    {
+      "iteration": 15,
+      "user_id": "demo-user-04",
+      "source_key": "recipe1m/kaggle-food-images/Food Images/Food Images/-hazelnut-butter-and-coffee-meringues-51260360.jpg",
+      "incoming_key": "incoming/demo-user-04/92244d3f-e496-4a9a-b4d2-56791bbf246b-synthetic-0015.jpg",
+      "upload_id": 38,
+      "approval_job_id": 36,
+      "filename": "synthetic-0015.jpg"
+    },
+    {
+      "iteration": 16,
+      "user_id": "demo-user-01",
+      "source_key": "recipe1m/kaggle-food-images/Food Images/Food Images/-lentils-with-cucumbers-chard-and-poached-egg-51260640.jpg",
+      "incoming_key": "incoming/demo-user-01/b4bbd99b-e5ed-4c29-8a61-74091db85ed4-synthetic-0016.jpg",
+      "upload_id": 39,
+      "approval_job_id": 37,
+      "filename": "synthetic-0016.jpg"
+    },
+    {
+      "iteration": 17,
+      "user_id": "demo-user-02",
+      "source_key": "recipe1m/kaggle-food-images/Food Images/Food Images/-like-a-caesar-235836.jpg",
+      "incoming_key": "incoming/demo-user-02/6e93bff4-9b36-417b-a2c7-bc69353fbc8c-synthetic-0017.jpg",
+      "upload_id": 40,
+      "approval_job_id": 38,
+      "filename": "synthetic-0017.jpg"
+    },
+    {
+      "iteration": 18,
+      "user_id": "demo-user-03",
+      "source_key": "recipe1m/kaggle-food-images/Food Images/Food Images/-pistachio-crusted-chicken-with-carrot-raita-51236030.jpg",
+      "incoming_key": "incoming/demo-user-03/2716a1c5-b1fd-41ad-be39-de5898f22be8-synthetic-0018.jpg",
+      "upload_id": 41,
+      "approval_job_id": 39,
+      "filename": "synthetic-0018.jpg"
+    },
+    {
+      "iteration": 19,
+      "user_id": "demo-user-04",
+      "source_key": "recipe1m/kaggle-food-images/Food Images/Food Images/-pizza-sandwiches-354873.jpg",
+      "incoming_key": "incoming/demo-user-04/811b0d4b-aa8b-4e60-bd45-8fc956f1360c-synthetic-0019.jpg",
+      "upload_id": 42,
+      "approval_job_id": 40,
+      "filename": "synthetic-0019.jpg"
+    }
+  ]
+}

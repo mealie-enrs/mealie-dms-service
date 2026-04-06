@@ -7,7 +7,6 @@ resources:
   - postgres.yaml
   - redis.yaml
   - metabase.yaml
-  - mealie.yaml
   - api.yaml
   - worker.yaml
   - scheduler.yaml
