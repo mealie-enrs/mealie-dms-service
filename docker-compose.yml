@@ -103,6 +103,22 @@ services:
       - "6379:6379"
     restart: unless-stopped
 
+  metabase:
+    image: metabase/metabase:v0.56.3
+    container_name: dms-metabase
+    environment:
+      MB_DB_FILE: /metabase-data/metabase.db
+      MB_SITE_NAME: DMS Metabase
+    volumes:
+      - metabase_data:/metabase-data
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "3001:3000"
+    restart: unless-stopped
+
 volumes:
   pgdata:
   kaggle_downloads:
+  metabase_data:

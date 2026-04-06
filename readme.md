@@ -12,6 +12,7 @@ Infra dependencies:
 
 - `postgres`: metadata source of truth
 - `redis`: async broker/backend
+- `metabase`: optional UI for browsing tables, building saved questions, and creating curated views
 
 External storage:
 
@@ -45,6 +46,7 @@ External storage:
 4. Verify:
    - API health: `http://localhost:8000/healthz`
    - Containers: `docker compose ps`
+   - Metabase: `http://localhost:3001`
 
 ## API Surface (Initial)
 
@@ -57,6 +59,31 @@ External storage:
 - `POST /datasets/{dataset_id}/compile/recipenlg`: curate raw RecipeNLG CSV into versioned parquet
 - `POST /kaggle/download`: download a Kaggle dataset on the worker (optional Swift upload)
 - `GET /jobs/{job_id}`: track background job
+
+## Metabase
+
+Metabase is included as an optional data exploration and curation UI.
+
+- Docker Compose URL: `http://localhost:3001`
+- Kubernetes URL: `http://<floating-ip>:30081`
+
+Metabase stores its own application state in a separate volume and does not modify the DMS app image.
+
+Recommended first database connection inside Metabase:
+
+- Database type: PostgreSQL
+- Host: `postgres`
+- Port: `5432`
+- Database: `dms`
+- Username: `dms`
+- Password: your configured DMS Postgres password
+
+Suggested first curated views in Metabase:
+
+- dataset versions by dataset and creation time
+- job status summary by kind
+- uploads by status and user
+- objects by source and checksum
 
 ## Data Ownership
 

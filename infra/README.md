@@ -3,7 +3,7 @@
 This folder contains an infrastructure path that keeps your app code separate:
 
 - `terraform/`: provisions one Chameleon VM, security group, floating IP, and persistent volume
-- `k8s/`: deploys DMS runtime roles (`api`, `worker`, `scheduler`) plus `postgres` and `redis`
+- `k8s/`: deploys DMS runtime roles (`api`, `worker`, `scheduler`) plus `postgres`, `redis`, and optional `metabase`
 
 ## 1) Provision infrastructure with Terraform
 
@@ -90,6 +90,20 @@ API is exposed via NodePort `30080`:
 ```bash
 curl http://<floating-ip>:30080/healthz
 ```
+
+Metabase is exposed via NodePort `30081`:
+
+```bash
+open http://<floating-ip>:30081
+```
+
+Inside Metabase, connect to the in-cluster PostgreSQL database using:
+
+- Host: `postgres`
+- Port: `5432`
+- Database: `dms`
+- Username: `dms`
+- Password: value from `dms-secrets`
 
 ## 6) Scale later (same infra path)
 
