@@ -11,7 +11,7 @@
 | Data design document                       | **NEEDS WORK** | `readme.md` has basics, needs formal doc with diagrams                                  |
 | Data generator (synthetic load)            | **NOT BUILT**  |                                                                                         |
 | Online feature computation                 | **NOT BUILT**  |                                                                                         |
-| Batch pipeline (versioned train/eval sets) | **NOT BUILT**  |                                                                                         |
+| Batch pipeline (versioned train/eval sets) | **NOT BUILT**  | this is                                                                                 |
 | Candidate selection + leakage avoidance    | **NOT BUILT**  |                                                                                         |
 
 
@@ -121,3 +121,4 @@ Formal document with:
 2. **B — Data generator** (relatively simple script)
 3. **C — Online feature computation** (needs pre-trained model, most complex)
 4. **D — Data design document** (write based on what exists)
+
