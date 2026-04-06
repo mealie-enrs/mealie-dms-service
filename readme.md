@@ -68,6 +68,7 @@ Metabase is included as an optional data exploration and curation UI.
 - Kubernetes URL: `http://<floating-ip>:30081`
 
 Metabase stores its own application state in a separate volume and does not modify the DMS app image.
+It can be deployed independently from the DMS API/worker/scheduler rollout when you only need the UI.
 
 Recommended first database connection inside Metabase:
 
