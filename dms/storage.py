@@ -11,6 +11,8 @@ from keystoneauth1.identity import v3 as v3_identity
 from dms.config import settings
 
 VERSION_PREFIX = "recipe1m_versions"
+LARGE_OBJECT_THRESHOLD_BYTES = 100 * 1024 * 1024
+LARGE_OBJECT_SEGMENT_BYTES = 64 * 1024 * 1024
 
 
 def _swift_conn():
@@ -97,8 +99,68 @@ def put_file_path(
     if ct is None:
         guessed, _ = mimetypes.guess_type(p.name)
         ct = guessed or "application/octet-stream"
+
+    if size > LARGE_OBJECT_THRESHOLD_BYTES:
+        _put_large_object_file_path(
+            conn=conn,
+            container=container,
+            key=key,
+            path=p,
+            size=size,
+            content_type=ct,
+        )
+        return
+
     with open(p, "rb") as fh:
         conn.put_object(container, key, contents=fh, content_length=size, content_type=ct)
+
+
+def _put_large_object_file_path(
+    *,
+    conn: swiftclient.Connection,
+    container: str,
+    key: str,
+    path: Path,
+    size: int,
+    content_type: str,
+) -> None:
+    """Upload large files as segmented static large objects to avoid gateway timeouts."""
+    segment_prefix = f"_segments/{key}"
+    manifest_entries: list[dict[str, object]] = []
+
+    with open(path, "rb") as fh:
+        segment_index = 0
+        while True:
+            chunk = fh.read(LARGE_OBJECT_SEGMENT_BYTES)
+            if not chunk:
+                break
+
+            segment_key = f"{segment_prefix}/{segment_index:08d}"
+            etag = conn.put_object(
+                container,
+                segment_key,
+                contents=chunk,
+                content_length=len(chunk),
+                content_type="application/octet-stream",
+            )
+            manifest_entries.append(
+                {
+                    "path": f"/{container}/{segment_key}",
+                    "etag": etag,
+                    "size_bytes": len(chunk),
+                }
+            )
+            segment_index += 1
+
+    conn.put_object(
+        container,
+        key,
+        contents=json.dumps(manifest_entries).encode("utf-8"),
+        content_length=len(json.dumps(manifest_entries).encode("utf-8")),
+        content_type=content_type,
+        query_string="multipart-manifest=put",
+        headers={"X-Static-Large-Object": "true"},
+    )
 
 
 def make_object_key_from_bytes(raw_bytes: bytes, extension: str = "jpg") -> tuple[str, str]:
