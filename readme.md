@@ -257,6 +257,26 @@ Build a feature index from the versioned Recipe1M manifest:
 python scripts/build_feature_index.py --max-items 500
 ```
 
+## Recipe1M synthetic expansion
+
+For datasets smaller than 5 GB, you can deterministically expand only the
+training split and write a new versioned manifest without leaking synthetic
+variants into validation or test:
+
+```bash
+PYTHONPATH=. python scripts/expand_recipe1m_dataset.py \
+  --container proj26-training-data \
+  --source-manifest-key recipe1m_versions/v1/manifest.parquet \
+  --output-version v1_augmented \
+  --target-total-gb 5.1
+```
+
+Outputs:
+
+- `recipe1m_augmented/v1_augmented/...` synthetic images
+- `recipe1m_versions/v1_augmented/manifest.parquet`
+- `recipe1m_versions/v1_augmented/meta.json`
+
 Call the inference endpoint with an uploaded image:
 
 ```bash
