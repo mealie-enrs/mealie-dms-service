@@ -16,11 +16,17 @@ services:
       SWIFT_APP_CREDENTIAL_SECRET: ${SWIFT_APP_CREDENTIAL_SECRET:-}
       SWIFT_USER_UPLOADS_CONTAINER: ${SWIFT_USER_UPLOADS_CONTAINER:-proj26-user-uploads}
       SWIFT_TRAINING_CONTAINER: ${SWIFT_TRAINING_CONTAINER:-proj26-training-data}
+      QDRANT_HOST: ${QDRANT_HOST:-qdrant}
+      QDRANT_PORT: ${QDRANT_PORT:-6333}
+      QDRANT_COLLECTION: ${QDRANT_COLLECTION:-recipe_features}
+      PREFECT_API_URL: ${PREFECT_API_URL:-http://prefect-server:4200/api}
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+      qdrant:
+        condition: service_started
     ports:
       - "8000:8000"
     restart: unless-stopped
@@ -43,6 +49,13 @@ services:
       KAGGLE_USERNAME: ${KAGGLE_USERNAME:-}
       KAGGLE_KEY: ${KAGGLE_KEY:-}
       KAGGLE_DOWNLOAD_DIR: ${KAGGLE_DOWNLOAD_DIR:-/tmp/dms-kaggle-downloads}
+      QDRANT_HOST: ${QDRANT_HOST:-qdrant}
+      QDRANT_PORT: ${QDRANT_PORT:-6333}
+      QDRANT_COLLECTION: ${QDRANT_COLLECTION:-recipe_features}
+      PREFECT_API_URL: ${PREFECT_API_URL:-http://prefect-server:4200/api}
+      ENABLE_SODA_CHECKS: ${ENABLE_SODA_CHECKS:-false}
+      SODA_CONFIGURATION_FILE: ${SODA_CONFIGURATION_FILE:-quality/soda/configuration.yml}
+      SODA_CHECKS_FILE: ${SODA_CHECKS_FILE:-quality/soda/checks.yml}
     volumes:
       - kaggle_downloads:/tmp/dms-kaggle-downloads
     depends_on:
@@ -50,6 +63,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      qdrant:
+        condition: service_started
     restart: unless-stopped
 
   dms-scheduler:
@@ -66,6 +81,7 @@ services:
       SWIFT_APP_CREDENTIAL_SECRET: ${SWIFT_APP_CREDENTIAL_SECRET:-}
       SWIFT_USER_UPLOADS_CONTAINER: ${SWIFT_USER_UPLOADS_CONTAINER:-proj26-user-uploads}
       SWIFT_TRAINING_CONTAINER: ${SWIFT_TRAINING_CONTAINER:-proj26-training-data}
+      PREFECT_API_URL: ${PREFECT_API_URL:-http://prefect-server:4200/api}
     depends_on:
       postgres:
         condition: service_healthy
@@ -83,7 +99,7 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U dms -d dms"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-dms} -d ${POSTGRES_DB:-dms}"]
       interval: 5s
       timeout: 5s
       retries: 10
