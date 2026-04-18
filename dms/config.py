@@ -36,5 +36,16 @@ class Settings(BaseSettings):
     kaggle_key: str | None = None
     kaggle_download_dir: str = "/tmp/dms-kaggle-downloads"
 
+    # Qdrant vector store
+    qdrant_host: str = "qdrant"
+    qdrant_port: int = 6333
+    qdrant_collection: str = "recipe_features"
+
+    # Prefect
+    prefect_api_url: str = "http://prefect-server:4200/api"
+
+    # dbt
+    dbt_project_dir: str = "/app/transforms"
+
 
 settings = Settings()

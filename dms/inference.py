@@ -1,27 +1,32 @@
+"""
+Inference module — online feature computation path.
+
+Architecture:
+  1. ResNet50 (torchvision) computes a 2048-D L2-normalised embedding from an image.
+  2. Qdrant (vector DB) stores all recipe embeddings + metadata.
+  3. /inference/features  → embed query image → Qdrant cosine search → top-K matches.
+  4. /inference/index/build → Celery task loads manifest from Swift, embeds every
+     image, upserts into Qdrant.  Replaces the old NPZ file approach.
+"""
 from __future__ import annotations
 
 import base64
 import importlib
 import io
-import json
+import logging
+import uuid
 from dataclasses import dataclass
 
 import numpy as np
 from PIL import Image
 
 from dms.config import settings
-from dms.storage import get_bytes, put_bytes
 
+log = logging.getLogger(__name__)
 
-@dataclass
-class FeatureIndex:
-    embeddings: np.ndarray
-    object_keys: list[str]
-    titles: list[str]
-    ingredients: list[str]
-    splits: list[str]
-    source_manifest_key: str
-
+# ---------------------------------------------------------------------------
+# Model
+# ---------------------------------------------------------------------------
 
 @dataclass
 class InferenceModel:
@@ -32,18 +37,6 @@ class InferenceModel:
 
 
 _MODEL_CACHE: InferenceModel | None = None
-_INDEX_CACHE: FeatureIndex | None = None
-
-
-def decode_image_bytes(*, file_bytes: bytes | None = None, image_base64: str | None = None) -> bytes:
-    if file_bytes:
-        return file_bytes
-    if image_base64:
-        payload = image_base64.strip()
-        if payload.startswith("data:") and "," in payload:
-            payload = payload.split(",", 1)[1]
-        return base64.b64decode(payload)
-    raise ValueError("Provide either file bytes or image_base64.")
 
 
 def load_model() -> InferenceModel:
@@ -54,8 +47,8 @@ def load_model() -> InferenceModel:
     try:
         torch = importlib.import_module("torch")
         models = importlib.import_module("torchvision.models")
-    except ImportError as exc:  # pragma: no cover
-        raise RuntimeError("Inference dependencies are missing. Install torch and torchvision.") from exc
+    except ImportError as exc:
+        raise RuntimeError("Install torch and torchvision for inference.") from exc
 
     weights = models.ResNet50_Weights.DEFAULT
     backbone = models.resnet50(weights=weights)
@@ -68,6 +61,7 @@ def load_model() -> InferenceModel:
         extractor=extractor,
         preprocess=weights.transforms(),
     )
+    log.info("ResNet50 loaded (embedding_dim=2048)")
     return _MODEL_CACHE
 
 
@@ -86,56 +80,91 @@ def compute_embedding(raw_bytes: bytes) -> np.ndarray:
     return features
 
 
-def cosine_top_k(embedding: np.ndarray, index: FeatureIndex, top_k: int) -> list[dict]:
-    if index.embeddings.size == 0:
-        return []
+def decode_image_bytes(*, file_bytes: bytes | None = None, image_base64: str | None = None) -> bytes:
+    if file_bytes:
+        return file_bytes
+    if image_base64:
+        payload = image_base64.strip()
+        if payload.startswith("data:") and "," in payload:
+            payload = payload.split(",", 1)[1]
+        return base64.b64decode(payload)
+    raise ValueError("Provide either file bytes or image_base64.")
 
-    scores = index.embeddings @ embedding
-    k = min(top_k, len(index.object_keys))
-    top_idx = np.argsort(scores)[-k:][::-1]
+
+# ---------------------------------------------------------------------------
+# Qdrant vector store
+# ---------------------------------------------------------------------------
+
+def _get_qdrant_client():
+    from qdrant_client import QdrantClient
+    return QdrantClient(host=settings.qdrant_host, port=settings.qdrant_port)
+
+
+def ensure_collection() -> None:
+    from qdrant_client.models import Distance, VectorParams
+    client = _get_qdrant_client()
+    existing = [c.name for c in client.get_collections().collections]
+    if settings.qdrant_collection not in existing:
+        client.create_collection(
+            settings.qdrant_collection,
+            vectors_config=VectorParams(size=2048, distance=Distance.COSINE),
+        )
+        log.info("Created Qdrant collection '%s'", settings.qdrant_collection)
+
+
+def search_qdrant(embedding: np.ndarray, top_k: int) -> list[dict]:
+    client = _get_qdrant_client()
+    results = client.search(
+        collection_name=settings.qdrant_collection,
+        query_vector=embedding.tolist(),
+        limit=top_k,
+        with_payload=True,
+    )
     return [
         {
-            "object_key": index.object_keys[idx],
-            "title": index.titles[idx],
-            "ingredients": index.ingredients[idx],
-            "split": index.splits[idx],
-            "score": float(scores[idx]),
+            "object_key": r.payload.get("object_key", ""),
+            "title": r.payload.get("title", ""),
+            "ingredients": r.payload.get("ingredients", ""),
+            "split": r.payload.get("split", ""),
+            "score": float(r.score),
         }
-        for idx in top_idx
+        for r in results
     ]
 
 
-def load_index(force_reload: bool = False) -> FeatureIndex:
-    global _INDEX_CACHE
-    if _INDEX_CACHE is not None and not force_reload:
-        return _INDEX_CACHE
+def get_collection_info() -> dict:
+    client = _get_qdrant_client()
+    existing = [c.name for c in client.get_collections().collections]
+    if settings.qdrant_collection not in existing:
+        return {"collection": settings.qdrant_collection, "vectors_count": 0, "status": "empty"}
+    info = client.get_collection(settings.qdrant_collection)
+    return {
+        "collection": settings.qdrant_collection,
+        "vectors_count": info.vectors_count,
+        "indexed_vectors_count": info.indexed_vectors_count,
+        "status": str(info.status),
+    }
 
-    raw = get_bytes(settings.swift_training_container, settings.inference_index_key)
-    with np.load(io.BytesIO(raw), allow_pickle=False) as data:
-        _INDEX_CACHE = FeatureIndex(
-            embeddings=data["embeddings"].astype(np.float32),
-            object_keys=data["object_keys"].astype(str).tolist(),
-            titles=data["titles"].astype(str).tolist(),
-            ingredients=data["ingredients"].astype(str).tolist(),
-            splits=data["splits"].astype(str).tolist(),
-            source_manifest_key=str(data["source_manifest_key"][0]),
+
+def upsert_batch(points: list[dict]) -> int:
+    """Upsert a batch of {id, vector, payload} dicts into Qdrant."""
+    from qdrant_client.models import PointStruct
+    ensure_collection()
+    client = _get_qdrant_client()
+
+    qdrant_points = [
+        PointStruct(
+            id=p.get("id", str(uuid.uuid4())),
+            vector=p["vector"],
+            payload=p.get("payload", {}),
         )
-    return _INDEX_CACHE
+        for p in points
+    ]
 
+    batch_size = 128
+    inserted = 0
+    for i in range(0, len(qdrant_points), batch_size):
+        client.upsert(collection_name=settings.qdrant_collection, points=qdrant_points[i:i + batch_size])
+        inserted += len(qdrant_points[i:i + batch_size])
 
-def load_index_meta() -> dict:
-    raw = get_bytes(settings.swift_training_container, settings.inference_index_meta_key)
-    return json.loads(raw.decode("utf-8"))
-
-
-def save_index_bytes(content: bytes) -> None:
-    put_bytes(settings.swift_training_container, settings.inference_index_key, content)
-
-
-def save_index_meta(meta: dict) -> None:
-    put_bytes(
-        settings.swift_training_container,
-        settings.inference_index_meta_key,
-        json.dumps(meta, indent=2).encode("utf-8"),
-        "application/json",
-    )
+    return inserted

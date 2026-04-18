@@ -50,6 +50,14 @@ KAGGLE_USERNAME="nidhish1010"
 KAGGLE_KEY="2db3bd3d0bc695b5a3fed7906d7bb6d5"
 KAGGLE_DOWNLOAD_DIR="/tmp/dms-kaggle-downloads"
 
+# --- Qdrant vector store -----------------------------------------------------
+QDRANT_HOST="qdrant"
+QDRANT_PORT="6333"
+QDRANT_COLLECTION="recipe_features"
+
+# --- Prefect pipeline orchestration ------------------------------------------
+PREFECT_API_URL="http://prefect-server:4200/api"
+
 # --- Monitoring --------------------------------------------------------------
 GRAFANA_USER="admin"
 GRAFANA_PASSWORD="admin"
@@ -148,6 +156,14 @@ ENABLE_SODA_CHECKS=${ENABLE_SODA_CHECKS}
 SODA_CONFIGURATION_FILE=${SODA_CONFIGURATION_FILE}
 SODA_CHECKS_FILE=${SODA_CHECKS_FILE}
 
+# Qdrant
+QDRANT_HOST=${QDRANT_HOST}
+QDRANT_PORT=${QDRANT_PORT}
+QDRANT_COLLECTION=${QDRANT_COLLECTION}
+
+# Prefect
+PREFECT_API_URL=${PREFECT_API_URL}
+
 # Monitoring
 GRAFANA_USER=${GRAFANA_USER}
 GRAFANA_PASSWORD=${GRAFANA_PASSWORD}
@@ -204,6 +220,8 @@ echo -e "${GREEN}============================================================${N
   echo -e "  API        →  http://${HOST_IP}:${DMS_API_PORT}"
   echo -e "  API health →  http://${HOST_IP}:${DMS_API_PORT}/healthz"
   echo -e "  Metabase   →  http://${HOST_IP}:${METABASE_PORT}"
+  echo -e "  Qdrant     →  http://${HOST_IP}:6333"
+  echo -e "  Prefect    →  http://${HOST_IP}:4200"
   echo -e "  Grafana    →  http://${HOST_IP}:3000  (${GRAFANA_USER} / ${GRAFANA_PASSWORD})"
   echo -e "  Prometheus →  http://${HOST_IP}:9090"
   echo -e "  Postgres   →  ${HOST_IP}:5432  (user: ${POSTGRES_USER})"

@@ -17,6 +17,8 @@ Stack: Docker Compose (12 containers)
 | **Prometheus** | http://192.5.87.45:9090 | — |
 | **Prometheus targets** | http://192.5.87.45:9090/targets | — |
 | **Metabase** | http://192.5.87.45:3001 | set on first login |
+| **Qdrant UI** | http://192.5.87.45:6333/dashboard | — |
+| **Prefect UI** | http://192.5.87.45:4200 | — |
 
 ---
 

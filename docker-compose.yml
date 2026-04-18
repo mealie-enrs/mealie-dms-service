@@ -119,6 +119,57 @@ services:
     restart: unless-stopped
 
   # ---------------------------------------------------------------------------
+  # Vector store — online feature computation
+  # ---------------------------------------------------------------------------
+  qdrant:
+    image: qdrant/qdrant:v1.9.2
+    container_name: dms-qdrant
+    volumes:
+      - qdrant_data:/qdrant/storage
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Pipeline orchestration — Prefect server
+  # ---------------------------------------------------------------------------
+  prefect-server:
+    image: prefecthq/prefect:3-latest
+    container_name: dms-prefect-server
+    command: prefect server start --host 0.0.0.0
+    environment:
+      PREFECT_API_DATABASE_CONNECTION_URL: "sqlite+aiosqlite:////data/prefect.db"
+      PREFECT_SERVER_API_HOST: "0.0.0.0"
+    volumes:
+      - prefect_data:/data
+    ports:
+      - "4200:4200"
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Data transformation — dbt
+  # ---------------------------------------------------------------------------
+  dbt:
+    build:
+      context: .
+      dockerfile: Dockerfile.dbt
+    image: dms-dbt:local
+    container_name: dms-dbt
+    environment:
+      DBT_POSTGRES_HOST: postgres
+      DBT_POSTGRES_PORT: "5432"
+      DBT_POSTGRES_USER: ${POSTGRES_USER:-dms}
+      DBT_POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dms}
+      DBT_POSTGRES_DB: ${POSTGRES_DB:-dms}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles:
+      - transforms
+    restart: "no"
+
+  # ---------------------------------------------------------------------------
   # Monitoring stack
   # ---------------------------------------------------------------------------
   prometheus:
@@ -205,3 +256,5 @@ volumes:
   metabase_data:
   prometheus_data:
   grafana_data:
+  qdrant_data:
+  prefect_data:

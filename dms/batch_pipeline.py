@@ -98,6 +98,7 @@ class PipelineStats:
     train: int = 0
     val: int = 0
     test: int = 0
+    augmented: int = 0
 
 
 def compile_dataset(
@@ -181,8 +182,15 @@ def write_manifest(
     stats: PipelineStats,
     container: str | None = None,
     version: str = "v1",
+    enable_augmentation: bool = True,
 ) -> tuple[str, str]:
-    """Write Parquet manifest and meta.json to Swift. Returns (manifest_key, meta_key)."""
+    """
+    Write Parquet manifest and meta.json to Swift.
+
+    If enable_augmentation=True and total dataset size is under 5 GB,
+    augmented rows are added for training images using Albumentations.
+    Returns (manifest_key, meta_key).
+    """
     import json
     from datetime import datetime
 
@@ -197,9 +205,52 @@ def write_manifest(
             "image_name": r.image_name,
             "split": r.split,
             "size_bytes": r.size_bytes,
+            "augmented": False,
+            "source_object_key": r.object_key,
         }
         for r in records
     ]
+
+    # Synthetic data expansion — only on train split, only if total < 5 GB
+    total_bytes = sum(r.size_bytes for r in records)
+    five_gb = 5 * 1024 ** 3
+    if enable_augmentation and total_bytes < five_gb:
+        log.info("Dataset %.1f GB < 5 GB — applying Albumentations augmentation to train split",
+                 total_bytes / 1024 ** 3)
+        try:
+            from dms.augmentation import AUGMENT_FACTOR, augment_image_bytes
+            from dms.storage import require_swift
+            conn = require_swift()
+
+            augmented_rows = []
+            for r in records:
+                if r.split != "train":
+                    continue
+                try:
+                    _, img_bytes = conn.get_object(container, r.object_key)
+                    variants = augment_image_bytes(bytes(img_bytes), n=AUGMENT_FACTOR)
+                    for i, aug_bytes in enumerate(variants):
+                        aug_key = f"{r.object_key}.aug{i}.jpg"
+                        put_bytes(container, aug_key, aug_bytes, "image/jpeg")
+                        augmented_rows.append({
+                            "object_key": aug_key,
+                            "title": r.title,
+                            "ingredients": r.ingredients,
+                            "cleaned_ingredients": r.cleaned_ingredients,
+                            "image_name": r.image_name,
+                            "split": "train",
+                            "size_bytes": len(aug_bytes),
+                            "augmented": True,
+                            "source_object_key": r.object_key,
+                        })
+                except Exception as exc:
+                    log.warning("Augmentation skipped for %s: %s", r.object_key, exc)
+
+            rows.extend(augmented_rows)
+            stats.augmented = len(augmented_rows)
+            log.info("Added %d augmented training rows", len(augmented_rows))
+        except Exception as exc:
+            log.warning("Augmentation step failed, continuing without it: %s", exc)
 
     table = pa.Table.from_pylist(rows)
     buf = io.BytesIO()
@@ -213,7 +264,9 @@ def write_manifest(
         "version": version,
         "dataset": "kaggle-food-images",
         "created_at": datetime.utcnow().isoformat() + "Z",
-        "total_records": stats.matched,
+        "total_records": len(rows),
+        "original_records": stats.matched,
+        "augmented_records": stats.augmented,
         "split_counts": {"train": stats.train, "val": stats.val, "test": stats.test},
         "candidate_selection": {
             "csv_rows": stats.csv_rows,
@@ -224,6 +277,15 @@ def write_manifest(
         },
         "split_strategy": "deterministic hash on recipe title (70/15/15)",
         "leakage_avoidance": "split by recipe identity — same recipe always in same split",
+        "augmentation": {
+            "enabled": enable_augmentation and total_bytes < five_gb,
+            "tool": "albumentations",
+            "factor": 3,
+            "transforms": ["HorizontalFlip", "RandomBrightnessContrast", "HueSaturationValue",
+                           "RandomRotate90", "ShiftScaleRotate", "GaussianBlur", "CLAHE",
+                           "RandomCrop", "Resize"],
+            "applied_to": "train split only",
+        },
     }
     meta_key = f"{VERSION_PREFIX}/{version}/meta.json"
     put_text(container, meta_key, json.dumps(meta, indent=2), "application/json")

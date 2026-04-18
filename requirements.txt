@@ -1,18 +1,48 @@
+# --- Core API ----------------------------------------------------------------
 fastapi==0.115.12
 python-multipart==0.0.20
 uvicorn[standard]==0.34.0
+pydantic-settings==2.8.1
+
+# --- Database ----------------------------------------------------------------
 sqlalchemy==2.0.40
 psycopg[binary]==3.2.6
-pydantic-settings==2.8.1
+
+# --- Task queue --------------------------------------------------------------
 celery[redis]==5.4.0
+
+# --- Object storage (Swift / S3) ---------------------------------------------
 python-swiftclient==4.6.0
 python-keystoneclient==5.5.0
 keystoneauth1>=5.0.0
+
+# --- Data formats ------------------------------------------------------------
 pyarrow==19.0.1
 ijson==3.3.0
-datasets==2.20.0
 Pillow==10.4.0
-kagglehub==0.3.6
 numpy==2.2.4
+
+# --- ML / inference ----------------------------------------------------------
 torch==2.7.1
 torchvision==0.22.1
+
+# --- Vector store (online feature computation) -------------------------------
+qdrant-client==1.9.1
+
+# --- Pipeline orchestration --------------------------------------------------
+prefect==3.4.6
+
+# --- Synthetic data augmentation ---------------------------------------------
+albumentations==1.4.18
+
+# --- Data quality ------------------------------------------------------------
+soda-core-postgres==3.3.3
+
+# --- Data catalogue / versioning CLI (installed here so worker can call it) --
+dvc[s3]==3.59.0
+
+# --- Kaggle ------------------------------------------------------------------
+kagglehub==0.3.6
+
+# --- Misc --------------------------------------------------------------------
+datasets==2.20.0

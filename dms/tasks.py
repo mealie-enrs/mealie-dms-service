@@ -486,6 +486,98 @@ def compile_recipenlg_dataset(
         db.close()
 
 
+@celery_app.task(name="dms.tasks.build_qdrant_index")
+def build_qdrant_index(job_id: int, manifest_key: str) -> None:
+    """
+    Read a compiled Parquet manifest from Swift, compute ResNet50 embeddings
+    for every image, and upsert into Qdrant. This is the index-build step of
+    the online feature computation path.
+    """
+    import io as _io
+    import pyarrow.parquet as pq
+
+    from dms import inference
+    from dms.storage import get_bytes, require_swift
+
+    log = logging.getLogger(__name__)
+    db = SessionLocal()
+    try:
+        _set_job_state(db, job_id, JobStatus.running, f"building Qdrant index from {manifest_key}")
+
+        # Load manifest
+        raw = get_bytes(settings.swift_training_container, manifest_key)
+        table = pq.read_table(_io.BytesIO(raw))
+        df = table.to_pandas()
+        log.info("Manifest loaded: %d rows", len(df))
+
+        inference.ensure_collection()
+        conn = require_swift()
+
+        inserted = 0
+        failed = 0
+        batch: list[dict] = []
+
+        for _, row in df.iterrows():
+            object_key = str(row.get("object_key", ""))
+            if not object_key:
+                continue
+            try:
+                _, img_bytes = conn.get_object(settings.swift_training_container, object_key)
+                embedding = inference.compute_embedding(bytes(img_bytes))
+                batch.append({
+                    "id": str(__import__("uuid").uuid4()),
+                    "vector": embedding.tolist(),
+                    "payload": {
+                        "object_key": object_key,
+                        "title": str(row.get("title", "")),
+                        "ingredients": str(row.get("ingredients", "")),
+                        "split": str(row.get("split", "train")),
+                    },
+                })
+                if len(batch) >= 64:
+                    inserted += inference.upsert_batch(batch)
+                    batch = []
+            except Exception as exc:
+                log.warning("Failed to embed %s: %s", object_key, exc)
+                failed += 1
+
+        if batch:
+            inserted += inference.upsert_batch(batch)
+
+        msg = f"indexed={inserted} failed={failed} manifest={manifest_key}"
+        _set_job_state(db, job_id, JobStatus.succeeded, msg)
+        log.info("Qdrant index build complete: %s", msg)
+    except Exception as exc:
+        db.rollback()
+        _set_job_state(db, job_id, JobStatus.failed, f"failed: {exc}")
+        raise
+    finally:
+        db.close()
+
+
+@celery_app.task(name="dms.tasks.run_training_pipeline")
+def run_training_pipeline(
+    version: str = "v1",
+    dataset_id: int = 1,
+    skip_download: bool = True,
+    enable_augmentation: bool = True,
+) -> dict:
+    """Celery wrapper that triggers the Prefect training pipeline flow."""
+    import os
+    from dms.config import settings
+
+    os.environ.setdefault("PREFECT_API_URL", settings.prefect_api_url)
+
+    from pipelines.training_pipeline import training_pipeline
+    result = training_pipeline(
+        version=version,
+        dataset_id=dataset_id,
+        skip_download=skip_download,
+        enable_augmentation=enable_augmentation,
+    )
+    return result
+
+
 @celery_app.task(name="dms.tasks.cleanup_stale_uploads")
 def cleanup_stale_uploads() -> None:
     db = SessionLocal()

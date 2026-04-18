@@ -1,0 +1,12 @@
+dms:
+  target: dev
+  outputs:
+    dev:
+      type: postgres
+      host: "{{ env_var('DBT_POSTGRES_HOST', 'postgres') }}"
+      port: "{{ env_var('DBT_POSTGRES_PORT', '5432') | int }}"
+      user: "{{ env_var('DBT_POSTGRES_USER', 'dms') }}"
+      password: "{{ env_var('DBT_POSTGRES_PASSWORD', 'dms') }}"
+      dbname: "{{ env_var('DBT_POSTGRES_DB', 'dms') }}"
+      schema: dbt_dms
+      threads: 4

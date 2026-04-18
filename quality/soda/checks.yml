@@ -1,2 +1,31 @@
-checks for manifest_quality:
-  - row_count > 0
+checks for objects:
+  - row_count > 0:
+      name: "objects table has rows"
+  - missing_count(object_key) = 0:
+      name: "no missing object keys"
+  - duplicate_count(object_key) = 0:
+      name: "object keys are unique"
+  - missing_count(checksum_sha256) = 0:
+      name: "no missing checksums"
+
+checks for dataset_versions:
+  - row_count > 0:
+      name: "at least one dataset version exists"
+  - missing_count(manifest_key) = 0:
+      name: "all versions have a manifest key"
+  - missing_count(version) = 0:
+      name: "all versions have a version string"
+
+checks for uploads:
+  - row_count >= 0:
+      name: "uploads table accessible"
+  - invalid_count(status) = 0:
+      valid values: [incoming, approved, rejected, quarantined]
+      name: "upload statuses are valid"
+
+checks for jobs:
+  - row_count >= 0:
+      name: "jobs table accessible"
+  - invalid_count(status) = 0:
+      valid values: [queued, running, succeeded, failed]
+      name: "job statuses are valid"

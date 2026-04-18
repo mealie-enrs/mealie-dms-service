@@ -1,0 +1,13 @@
+[core]
+    remote = chameleon-swift
+
+[remote "chameleon-swift"]
+    url = s3://proj26-training-data
+    endpointurl = https://chi.uc.chameleoncloud.org:7480
+
+# Auth: set these via env vars on the server (never commit to git)
+# AWS_ACCESS_KEY_ID     = your Chameleon EC2 access key
+# AWS_SECRET_ACCESS_KEY = your Chameleon EC2 secret key
+#
+# Get EC2 credentials from Chameleon:
+#   openstack ec2 credentials create

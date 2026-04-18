@@ -1,0 +1,9 @@
+data_sources:
+  dms:
+    type: postgres
+    connection:
+      host: ${POSTGRES_HOST:-postgres}
+      port: ${POSTGRES_PORT:-5432}
+      username: ${POSTGRES_USER:-dms}
+      password: ${POSTGRES_PASSWORD:-dms}
+      database: ${POSTGRES_DB:-dms}

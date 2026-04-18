@@ -1,0 +1,48 @@
+stages:
+  download:
+    desc: "Download Kaggle food-images dataset and upload to Chameleon Swift"
+    cmd: >
+      python -c "
+      from pipelines.training_pipeline import step_download_kaggle;
+      step_download_kaggle.fn(
+        'pes12017000148/food-ingredients-and-recipe-dataset-with-images',
+        'recipe1m/kaggle-food-images'
+      )
+      "
+    deps:
+      - pipelines/training_pipeline.py
+      - dms/config.py
+
+  compile:
+    desc: "Compile versioned training dataset with candidate selection + augmentation"
+    cmd: python -m pipelines.training_pipeline --version ${VERSION:-v1} --dataset-id ${DATASET_ID:-1} --skip-download
+    deps:
+      - pipelines/training_pipeline.py
+      - dms/batch_pipeline.py
+      - dms/augmentation.py
+    params:
+      - params.yaml:
+          - version
+          - dataset_id
+          - enable_augmentation
+
+  quality:
+    desc: "Run Soda data quality checks against Postgres"
+    cmd: >
+      soda scan
+        -d dms
+        -c quality/soda/configuration.yml
+        quality/soda/checks.yml
+    deps:
+      - quality/soda/checks.yml
+      - quality/soda/configuration.yml
+
+  transform:
+    desc: "Run dbt models to build summary marts in Postgres"
+    cmd: >
+      dbt run
+        --project-dir transforms
+        --profiles-dir transforms
+    deps:
+      - transforms/models/
+      - transforms/dbt_project.yml

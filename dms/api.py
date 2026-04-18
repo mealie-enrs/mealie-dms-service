@@ -37,11 +37,20 @@ logger = logging.getLogger(__name__)
 @app.on_event("startup")
 def startup() -> None:
     Base.metadata.create_all(bind=engine)
+
+    # Ensure Qdrant collection exists (non-fatal if Qdrant is not ready yet)
+    try:
+        inference.ensure_collection()
+        logger.info("Qdrant collection '%s' ready.", settings.qdrant_collection)
+    except Exception:
+        logger.warning("Qdrant not reachable on startup — will retry on first request.")
+
+    # Preload ResNet50 weights (non-fatal — retries on first /inference/features call)
     try:
         inference.load_model()
-        logger.info("Preloaded inference model '%s' during startup.", settings.inference_model_name)
+        logger.info("Preloaded inference model '%s'.", settings.inference_model_name)
     except Exception:
-        logger.exception("Inference model preload failed during startup; requests will retry on demand.")
+        logger.warning("Inference model preload failed — will retry on first request.")
 
 
 @app.get("/healthz")
@@ -51,28 +60,37 @@ def healthz() -> dict[str, str]:
 
 @app.get("/inference/index")
 def inference_index() -> dict:
+    """Return Qdrant collection stats — how many recipes are indexed."""
     try:
-        return inference.load_index_meta()
-    except RuntimeError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
+        return inference.get_collection_info()
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
-@app.post("/inference/index/reload")
-def reload_inference_index() -> dict:
-    try:
-        index = inference.load_index(force_reload=True)
-    except RuntimeError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
-    except Exception as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
-    return {
-        "status": "reloaded",
-        "items": len(index.object_keys),
-        "embedding_dim": int(index.embeddings.shape[1]) if index.embeddings.size else 0,
-        "source_manifest_key": index.source_manifest_key,
-    }
+@app.post("/inference/index/build")
+def build_inference_index(db: Session = Depends(get_db)) -> dict:
+    """
+    Kick off a background job that reads the latest compiled manifest from
+    Swift, embeds every image through ResNet50, and upserts into Qdrant.
+    """
+    from dms.tasks import build_qdrant_index
+
+    job = Job(
+        kind="build_qdrant_index",
+        status=JobStatus.queued,
+        payload_json=json.dumps({"manifest_key": settings.inference_manifest_key}),
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow(),
+    )
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+
+    task = build_qdrant_index.delay(job.id, settings.inference_manifest_key)
+    job.celery_task_id = task.id
+    db.commit()
+
+    return {"job_id": job.id, "task_id": task.id, "status": job.status}
 
 
 @app.post("/inference/features")
@@ -99,8 +117,7 @@ async def inference_features(
         file_bytes = await file.read() if file is not None else None
         raw_bytes = inference.decode_image_bytes(file_bytes=file_bytes, image_base64=image_base64)
         embedding = inference.compute_embedding(raw_bytes)
-        index = inference.load_index()
-        matches = inference.cosine_top_k(embedding, index, top_k_value)
+        matches = inference.search_qdrant(embedding, top_k_value)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except RuntimeError as exc:
@@ -335,6 +352,22 @@ def kaggle_download(payload: KaggleDatasetDownloadRequest, db: Session = Depends
     db.commit()
 
     return {"job_id": job.id, "task_id": task.id, "status": job.status}
+
+
+@app.post("/pipelines/training")
+def trigger_training_pipeline(
+    version: str = "v1",
+    dataset_id: int = 1,
+    skip_download: bool = True,
+    enable_augmentation: bool = True,
+) -> dict:
+    """
+    Trigger the full Prefect batch pipeline asynchronously via Celery.
+    Runs: compile → quality check → augmentation → manifest → Qdrant index build.
+    """
+    from dms.tasks import run_training_pipeline
+    task = run_training_pipeline.delay(version, dataset_id, skip_download, enable_augmentation)
+    return {"task_id": task.id, "version": version, "status": "queued"}
 
 
 @app.get("/jobs/{job_id}")
