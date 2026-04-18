@@ -82,13 +82,11 @@ jobs:
             echo "==> Pulling new image: $IMAGE_NAME:$GITHUB_SHA"
             docker pull "$IMAGE_NAME:$GITHUB_SHA"
 
-            echo "==> Updating DMS_IMAGE in .env ..."
-            cd ${{ env.APP_DIR }}
-            sed -i '/^DMS_IMAGE=/d' .env || true
-            echo "DMS_IMAGE=$IMAGE_NAME:$GITHUB_SHA" >> .env
+            echo "==> Tagging as dms-app:local so compose picks it up ..."
+            docker tag "$IMAGE_NAME:$GITHUB_SHA" dms-app:local
 
             echo "==> Restarting containers with new image ..."
-            # .env already has DMS_IMAGE set — docker compose reads it automatically
+            cd ${{ env.APP_DIR }}
             docker compose up -d --no-build --force-recreate
 
             echo "==> Waiting for API to be healthy ..."
