@@ -7,7 +7,7 @@ services:
     container_name: dms-api
     environment:
       DMS_ROLE: api
-      DATABASE_URL: postgresql+psycopg://dms:dms@postgres:5432/dms
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-dms}:${POSTGRES_PASSWORD:-dms}@postgres:5432/${POSTGRES_DB:-dms}
       REDIS_URL: redis://redis:6379/0
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/1
@@ -30,7 +30,7 @@ services:
     container_name: dms-worker
     environment:
       DMS_ROLE: worker
-      DATABASE_URL: postgresql+psycopg://dms:dms@postgres:5432/dms
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-dms}:${POSTGRES_PASSWORD:-dms}@postgres:5432/${POSTGRES_DB:-dms}
       REDIS_URL: redis://redis:6379/0
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/1
@@ -57,7 +57,7 @@ services:
     container_name: dms-scheduler
     environment:
       DMS_ROLE: scheduler
-      DATABASE_URL: postgresql+psycopg://dms:dms@postgres:5432/dms
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-dms}:${POSTGRES_PASSWORD:-dms}@postgres:5432/${POSTGRES_DB:-dms}
       REDIS_URL: redis://redis:6379/0
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/1
@@ -77,9 +77,9 @@ services:
     image: postgres:16-alpine
     container_name: dms-postgres
     environment:
-      POSTGRES_USER: dms
-      POSTGRES_PASSWORD: dms
-      POSTGRES_DB: dms
+      POSTGRES_USER: ${POSTGRES_USER:-dms}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dms}
+      POSTGRES_DB: ${POSTGRES_DB:-dms}
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
