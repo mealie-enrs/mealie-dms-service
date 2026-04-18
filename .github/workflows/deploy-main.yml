@@ -82,11 +82,14 @@ jobs:
             echo "==> Pulling new image: $IMAGE_NAME:$GITHUB_SHA"
             docker pull "$IMAGE_NAME:$GITHUB_SHA"
 
+            echo "==> Pulling latest code (compose files, configs) ..."
+            cd ${{ env.APP_DIR }}
+            git pull origin main
+
             echo "==> Tagging as dms-app:local so compose picks it up ..."
             docker tag "$IMAGE_NAME:$GITHUB_SHA" dms-app:local
 
             echo "==> Restarting containers with new image ..."
-            cd ${{ env.APP_DIR }}
             docker compose up -d --no-build --force-recreate
 
             echo "==> Waiting for API to be healthy ..."
