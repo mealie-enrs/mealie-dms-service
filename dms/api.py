@@ -33,6 +33,10 @@ from dms.tasks import (
 app = FastAPI(title="DMS API")
 logger = logging.getLogger(__name__)
 
+# Expose /metrics for Prometheus scraping
+from prometheus_fastapi_instrumentator import Instrumentator
+Instrumentator().instrument(app).expose(app)
+
 
 @app.on_event("startup")
 def startup() -> None:

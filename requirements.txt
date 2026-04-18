@@ -29,6 +29,9 @@ torchvision==0.22.1
 # --- Vector store (online feature computation) -------------------------------
 qdrant-client==1.9.1
 
+# --- Prometheus metrics endpoint for FastAPI ---------------------------------
+prometheus-fastapi-instrumentator==7.0.0
+
 # --- Pipeline orchestration --------------------------------------------------
 prefect==3.4.6
 
