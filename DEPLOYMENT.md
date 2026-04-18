@@ -2,7 +2,21 @@
 
 Deployment target: **CPU node `192.5.87.45`** (`proj26-mealie-node-cpu`)  
 Deployed: 2026-04-18  
-Stack: Docker Compose (6 containers)
+Stack: Docker Compose (12 containers)
+
+---
+
+## Quick links
+
+| Service | URL | Credentials |
+|---------|-----|-------------|
+| **API** | http://192.5.87.45:8000 | — |
+| **API health** | http://192.5.87.45:8000/healthz | — |
+| **API docs** | http://192.5.87.45:8000/docs | — |
+| **Grafana** | http://192.5.87.45:3000 | admin / admin |
+| **Prometheus** | http://192.5.87.45:9090 | — |
+| **Prometheus targets** | http://192.5.87.45:9090/targets | — |
+| **Metabase** | http://192.5.87.45:3001 | set on first login |
 
 ---
 
