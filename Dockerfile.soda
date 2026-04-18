@@ -1,0 +1,14 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpq-dev gcc \
+    && rm -rf /var/lib/apt/lists/*
+
+# Soda gets its own isolated env — no opentelemetry conflict with prefect
+RUN pip install --no-cache-dir soda-core-postgres==3.3.3
+
+COPY quality ./quality
+
+CMD ["soda", "scan", "-d", "dms", "-c", "quality/soda/configuration.yml", "quality/soda/checks.yml"]
