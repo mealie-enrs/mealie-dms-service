@@ -88,7 +88,7 @@ jobs:
             echo "DMS_IMAGE=$IMAGE_NAME:$GITHUB_SHA" >> .env
 
             echo "==> Restarting containers with new image ..."
-            DMS_IMAGE="$IMAGE_NAME:$GITHUB_SHA" docker compose up -d --no-build
+            DMS_IMAGE="$IMAGE_NAME:$GITHUB_SHA" docker compose up -d --no-build --force-recreate
 
             echo "==> Waiting for API to be healthy ..."
             for i in $(seq 1 24); do
