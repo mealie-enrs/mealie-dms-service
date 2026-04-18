@@ -1,0 +1,36 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+
+  # Prometheus self-monitoring
+  - job_name: prometheus
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Host CPU, memory, disk, network
+  - job_name: node
+    static_configs:
+      - targets: ['node-exporter:9100']
+
+  # Docker container metrics (CPU, memory, network per container)
+  - job_name: cadvisor
+    static_configs:
+      - targets: ['cadvisor:8080']
+
+  # DMS API — FastAPI app metrics
+  - job_name: dms-api
+    static_configs:
+      - targets: ['dms-api:8000']
+    metrics_path: /metrics
+
+  # Redis metrics
+  - job_name: redis
+    static_configs:
+      - targets: ['redis-exporter:9121']
+
+  # Postgres metrics
+  - job_name: postgres
+    static_configs:
+      - targets: ['postgres-exporter:9187']

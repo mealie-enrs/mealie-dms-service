@@ -50,6 +50,10 @@ KAGGLE_USERNAME="nidhish1010"
 KAGGLE_KEY="2db3bd3d0bc695b5a3fed7906d7bb6d5"
 KAGGLE_DOWNLOAD_DIR="/tmp/dms-kaggle-downloads"
 
+# --- Monitoring --------------------------------------------------------------
+GRAFANA_USER="admin"
+GRAFANA_PASSWORD="admin"
+
 # --- Soda data quality checks (set to true to enable) -----------------------
 ENABLE_SODA_CHECKS="false"
 SODA_CONFIGURATION_FILE="quality/soda/configuration.yml"
@@ -144,6 +148,10 @@ ENABLE_SODA_CHECKS=${ENABLE_SODA_CHECKS}
 SODA_CONFIGURATION_FILE=${SODA_CONFIGURATION_FILE}
 SODA_CHECKS_FILE=${SODA_CHECKS_FILE}
 
+# Monitoring
+GRAFANA_USER=${GRAFANA_USER}
+GRAFANA_PASSWORD=${GRAFANA_PASSWORD}
+
 # Ports
 DMS_API_PORT=${DMS_API_PORT}
 METABASE_PORT=${METABASE_PORT}
@@ -193,11 +201,13 @@ echo ""
 echo -e "${GREEN}============================================================${NC}"
 echo -e "${GREEN}  DMS stack is up${NC}"
 echo -e "${GREEN}============================================================${NC}"
-echo -e "  API        →  http://${HOST_IP}:${DMS_API_PORT}"
-echo -e "  API health →  http://${HOST_IP}:${DMS_API_PORT}/healthz"
-echo -e "  Metabase   →  http://${HOST_IP}:${METABASE_PORT}"
-echo -e "  Postgres   →  ${HOST_IP}:5432  (user: ${POSTGRES_USER})"
-echo -e "  Redis      →  ${HOST_IP}:${REDIS_PORT}"
+  echo -e "  API        →  http://${HOST_IP}:${DMS_API_PORT}"
+  echo -e "  API health →  http://${HOST_IP}:${DMS_API_PORT}/healthz"
+  echo -e "  Metabase   →  http://${HOST_IP}:${METABASE_PORT}"
+  echo -e "  Grafana    →  http://${HOST_IP}:3000  (${GRAFANA_USER} / ${GRAFANA_PASSWORD})"
+  echo -e "  Prometheus →  http://${HOST_IP}:9090"
+  echo -e "  Postgres   →  ${HOST_IP}:5432  (user: ${POSTGRES_USER})"
+  echo -e "  Redis      →  ${HOST_IP}:${REDIS_PORT}"
 echo ""
 echo -e "  Useful commands:"
 echo -e "    docker compose ps"

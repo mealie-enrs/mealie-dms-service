@@ -27,6 +27,12 @@ SSH key: `~/.ssh/id_rsa_chameleon`, user: `cc`
 | `dms-postgres` | `postgres:16-alpine` | `5432` | Metadata database |
 | `dms-redis` | `redis:7-alpine` | `6379` | Broker + result backend |
 | `dms-metabase` | `metabase/metabase:v0.56.3` | `3001` | BI dashboard |
+| `dms-prometheus` | `prom/prometheus:v2.51.0` | `9090` | Metrics collection |
+| `dms-grafana` | `grafana/grafana:10.4.2` | `3000` | Metrics visualization |
+| `dms-node-exporter` | `prom/node-exporter:v1.7.0` | — | Host CPU/mem/disk metrics |
+| `dms-cadvisor` | `gcr.io/cadvisor/cadvisor:v0.49.1` | — | Container metrics |
+| `dms-redis-exporter` | `oliver006/redis_exporter:v1.58.0` | — | Redis metrics |
+| `dms-postgres-exporter` | `prometheuscommunity/postgres-exporter:v0.15.0` | — | Postgres metrics |
 
 ---
 
@@ -205,9 +211,25 @@ docker system prune -f   # remove unused images/containers to free space
 
 ## Service URLs (live)
 
-| Service | URL |
-|---------|-----|
-| API | http://192.5.87.45:8000 |
-| API health | http://192.5.87.45:8000/healthz |
-| API docs | http://192.5.87.45:8000/docs |
-| Metabase | http://192.5.87.45:3001 |
+| Service | URL | Credentials |
+|---------|-----|-------------|
+| API | http://192.5.87.45:8000 | — |
+| API health | http://192.5.87.45:8000/healthz | — |
+| API docs | http://192.5.87.45:8000/docs | — |
+| Metabase | http://192.5.87.45:3001 | set on first login |
+| Grafana | http://192.5.87.45:3000 | admin / admin (change after first login) |
+| Prometheus | http://192.5.87.45:9090 | — |
+
+## Grafana dashboards (import after first login)
+
+1. Open http://192.5.87.45:3000 → login → **Dashboards → Import**
+2. Import these community dashboards by ID:
+
+| Dashboard | ID | What it shows |
+|-----------|-----|--------------|
+| Node Exporter Full | `1860` | Host CPU, memory, disk, network |
+| Docker containers (cAdvisor) | `14282` | Per-container CPU, memory, network |
+| Redis | `763` | Redis ops, memory, connections |
+| Postgres | `9628` | Postgres queries, connections, cache |
+
+Prometheus datasource is pre-configured automatically — just select it when importing.
