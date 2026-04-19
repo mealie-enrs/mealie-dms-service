@@ -48,8 +48,10 @@ kagglehub==0.3.6
 # --- Event streaming (Redpanda / Kafka) --------------------------------------
 confluent-kafka==2.4.0
 
-# --- Iceberg lakehouse -------------------------------------------------------
-pyiceberg[s3,pyarrow,sql-postgres]==0.7.1
+# Note: pyiceberg conflicts with pyarrow>=18 in this image.
+# PyIceberg runs in the Airflow containers (see airflow/requirements.txt)
+# and in a dedicated Dockerfile.iceberg for the write worker.
+# iceberg_store.py handles ImportError gracefully if called from this image.
 
 # Note: dvc is a developer/CI CLI tool — install it on your laptop or in the
 # CI runner, not inside the app image. See .dvc/config and dvc.yaml.
