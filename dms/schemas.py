@@ -64,6 +64,20 @@ class CompileRecipeNLGDatasetRequest(BaseModel):
     )
 
 
+class TrainingPipelineRequest(BaseModel):
+    """Trigger the end-to-end Prefect training pipeline."""
+
+    version: str = Field(default="v1", min_length=1, description="Dataset version tag, e.g. v1, v2.")
+    dataset_id: int = Field(default=1, ge=1, description="ID of the Dataset row to register the version under.")
+    skip_download: bool = Field(default=True, description="Skip the Kaggle download step (use existing Swift data).")
+    enable_augmentation: bool = Field(
+        default=False,
+        description="Generate synthetic augmented variants via Albumentations. "
+                    "Very slow (4 Swift round-trips per training image). "
+                    "Leave False for fast index builds.",
+    )
+
+
 class KaggleDatasetDownloadRequest(BaseModel):
     """Download a Kaggle dataset on the worker and optionally upload to Swift."""
 

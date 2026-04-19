@@ -18,6 +18,7 @@ from dms.schemas import (
     KaggleDatasetDownloadRequest,
     PublishVersionRequest,
     Recipe1MSampleIngestRequest,
+    TrainingPipelineRequest,
     UploadInitRequest,
     UploadInitResponse,
 )
@@ -368,19 +369,19 @@ def kaggle_download(payload: KaggleDatasetDownloadRequest, db: Session = Depends
 
 
 @app.post("/pipelines/training")
-def trigger_training_pipeline(
-    version: str = "v1",
-    dataset_id: int = 1,
-    skip_download: bool = True,
-    enable_augmentation: bool = True,
-) -> dict:
+def trigger_training_pipeline(payload: TrainingPipelineRequest) -> dict:
     """
     Trigger the full Prefect batch pipeline asynchronously via Celery.
     Runs: compile → quality check → augmentation → manifest → Qdrant index build.
     """
     from dms.tasks import run_training_pipeline
-    task = run_training_pipeline.delay(version, dataset_id, skip_download, enable_augmentation)
-    return {"task_id": task.id, "version": version, "status": "queued"}
+    task = run_training_pipeline.delay(
+        payload.version,
+        payload.dataset_id,
+        payload.skip_download,
+        payload.enable_augmentation,
+    )
+    return {"task_id": task.id, "version": payload.version, "status": "queued"}
 
 
 @app.get("/jobs/{job_id}")
