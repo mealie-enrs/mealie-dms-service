@@ -167,6 +167,7 @@ services:
     environment:
       PREFECT_API_DATABASE_CONNECTION_URL: "sqlite+aiosqlite:////data/prefect.db"
       PREFECT_SERVER_API_HOST: "0.0.0.0"
+      PREFECT_UI_API_URL: "http://192.5.87.45:4200/api"
     volumes:
       - prefect_data:/data
     ports:
