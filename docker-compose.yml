@@ -39,6 +39,7 @@ services:
     container_name: dms-worker
     environment:
       DMS_ROLE: worker
+      PYTHONPATH: /app
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-dms}:${POSTGRES_PASSWORD:-dms}@postgres:5432/${POSTGRES_DB:-dms}
       REDIS_URL: redis://redis:6379/0
       CELERY_BROKER_URL: redis://redis:6379/0
