@@ -22,11 +22,14 @@ log = logging.getLogger(__name__)
 AUGMENT_FACTOR = 3
 
 
-def _build_pipeline():
+def _build_pipeline(min_dim: int = 224):
     """Build the Albumentations augmentation pipeline for food images."""
     import albumentations as A
 
+    # SmallestMaxSize ensures the image is at least min_dim on its shortest side
+    # before any crop — prevents RandomCrop from exceeding image dimensions.
     return A.Compose([
+        A.SmallestMaxSize(max_size=min_dim, p=1.0),
         A.HorizontalFlip(p=0.5),
         A.RandomBrightnessContrast(brightness_limit=0.2, contrast_limit=0.2, p=0.7),
         A.HueSaturationValue(hue_shift_limit=10, sat_shift_limit=20, val_shift_limit=10, p=0.5),
@@ -34,8 +37,8 @@ def _build_pipeline():
         A.ShiftScaleRotate(shift_limit=0.05, scale_limit=0.1, rotate_limit=15, p=0.4),
         A.GaussianBlur(blur_limit=(3, 5), p=0.2),
         A.CLAHE(p=0.2),
-        A.RandomCrop(height=200, width=200, p=0.3),
-        A.Resize(height=224, width=224, p=1.0),
+        A.RandomCrop(height=min_dim, width=min_dim, p=0.3),
+        A.Resize(height=min_dim, width=min_dim, p=1.0),
     ])
 
 
