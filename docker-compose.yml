@@ -225,8 +225,8 @@ services:
   stream-consumer:
     image: ${DMS_IMAGE:-dms-app:local}
     container_name: dms-stream-consumer
+    entrypoint: ["python", "-m", "dms.stream_consumer"]
     environment:
-      DMS_ROLE: stream-consumer
       KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
       KAFKA_CONSUMER_GROUP: dms-stream-consumer
       KAFKA_TOPICS: dms.uploads,dms.approvals,dms.inference
