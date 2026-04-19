@@ -20,6 +20,7 @@ services:
       QDRANT_PORT: ${QDRANT_PORT:-6333}
       QDRANT_COLLECTION: ${QDRANT_COLLECTION:-recipe_features}
       PREFECT_API_URL: ${PREFECT_API_URL:-http://prefect-server:4200/api}
+      KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
     depends_on:
       postgres:
         condition: service_healthy
@@ -27,6 +28,8 @@ services:
         condition: service_healthy
       qdrant:
         condition: service_started
+      redpanda:
+        condition: service_healthy
     ports:
       - "8000:8000"
     restart: unless-stopped
@@ -53,6 +56,11 @@ services:
       QDRANT_PORT: ${QDRANT_PORT:-6333}
       QDRANT_COLLECTION: ${QDRANT_COLLECTION:-recipe_features}
       PREFECT_API_URL: ${PREFECT_API_URL:-http://prefect-server:4200/api}
+      KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      ICEBERG_CATALOG_URI: ${ICEBERG_CATALOG_URI:-postgresql+psycopg2://dms:dms@postgres:5432/dms}
+      ICEBERG_S3_ENDPOINT: ${ICEBERG_S3_ENDPOINT:-https://chi.uc.chameleoncloud.org:7480}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
       ENABLE_SODA_CHECKS: ${ENABLE_SODA_CHECKS:-false}
       SODA_CONFIGURATION_FILE: ${SODA_CONFIGURATION_FILE:-quality/soda/configuration.yml}
       SODA_CHECKS_FILE: ${SODA_CHECKS_FILE:-quality/soda/checks.yml}
@@ -65,6 +73,8 @@ services:
         condition: service_healthy
       qdrant:
         condition: service_started
+      redpanda:
+        condition: service_healthy
     restart: unless-stopped
 
   dms-scheduler:
@@ -161,6 +171,142 @@ services:
       - prefect_data:/data
     ports:
       - "4200:4200"
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Event streaming — Redpanda (Kafka-compatible)
+  # ---------------------------------------------------------------------------
+  redpanda:
+    image: redpandadata/redpanda:v24.1.1
+    container_name: dms-redpanda
+    command:
+      - redpanda start
+      - --kafka-addr internal://0.0.0.0:9092,external://0.0.0.0:19092
+      - --advertise-kafka-addr internal://redpanda:9092,external://localhost:19092
+      - --pandaproxy-addr internal://0.0.0.0:8082,external://0.0.0.0:18082
+      - --advertise-pandaproxy-addr internal://redpanda:8082,external://localhost:18082
+      - --schema-registry-addr internal://0.0.0.0:8081,external://0.0.0.0:18081
+      - --rpc-addr redpanda:33145
+      - --advertise-rpc-addr redpanda:33145
+      - --mode dev-container
+      - --smp 1
+      - --default-log-level=warn
+    volumes:
+      - redpanda_data:/var/lib/redpanda/data
+    ports:
+      - "19092:19092"   # Kafka external (host → container)
+      - "18082:18082"   # Pandaproxy HTTP
+      - "18081:18081"   # Schema registry
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster info --brokers localhost:9092 || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+
+  redpanda-console:
+    image: redpandadata/console:v2.6.0
+    container_name: dms-redpanda-console
+    environment:
+      CONFIG_FILEPATH: /app/config.yml
+    volumes:
+      - ./monitoring/redpanda-console.yml:/app/config.yml:ro
+    ports:
+      - "8080:8080"
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Stream consumer — reads Redpanda events, writes rolling windows to Redis
+  # ---------------------------------------------------------------------------
+  stream-consumer:
+    build:
+      context: .
+      dockerfile: services/stream_consumer/Dockerfile
+    container_name: dms-stream-consumer
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      KAFKA_CONSUMER_GROUP: dms-stream-consumer
+      KAFKA_TOPICS: dms.uploads,dms.approvals,dms.inference
+      REDIS_URL: redis://redis:6379/2
+    depends_on:
+      redpanda:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Airflow — training data assembly DAG + event aggregation DAG
+  # ---------------------------------------------------------------------------
+  airflow-webserver:
+    image: apache/airflow:2.9.1-python3.11
+    container_name: dms-airflow-webserver
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER:-dms}:${POSTGRES_PASSWORD:-dms}@postgres:5432/${POSTGRES_DB:-dms}
+      AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY:-}
+      AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/dags
+      AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW_SECRET_KEY:-dms-airflow-secret}
+      AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "True"
+      DATABASE_URL: postgresql://dms:dms@postgres:5432/dms
+      REDIS_URL: redis://redis:6379/2
+      KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      SWIFT_TRAINING_CONTAINER: ${SWIFT_TRAINING_CONTAINER:-proj26-training-data}
+      ICEBERG_S3_ENDPOINT: ${ICEBERG_S3_ENDPOINT:-https://chi.uc.chameleoncloud.org:7480}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags:ro
+      - ./airflow/requirements.txt:/opt/airflow/extra-requirements.txt:ro
+      - airflow_logs:/opt/airflow/logs
+    command: >
+      bash -c "
+        pip install --quiet -r /opt/airflow/extra-requirements.txt &&
+        airflow db upgrade &&
+        airflow users create --username admin --firstname Admin --lastname User
+          --role Admin --email admin@dms.local --password ${AIRFLOW_ADMIN_PASSWORD:-admin} 2>/dev/null || true &&
+        airflow webserver --port 8085
+      "
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8085:8085"
+    restart: unless-stopped
+
+  airflow-scheduler:
+    image: apache/airflow:2.9.1-python3.11
+    container_name: dms-airflow-scheduler
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER:-dms}:${POSTGRES_PASSWORD:-dms}@postgres:5432/${POSTGRES_DB:-dms}
+      AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY:-}
+      AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/dags
+      AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW_SECRET_KEY:-dms-airflow-secret}
+      DATABASE_URL: postgresql://dms:dms@postgres:5432/dms
+      REDIS_URL: redis://redis:6379/2
+      KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      SWIFT_TRAINING_CONTAINER: ${SWIFT_TRAINING_CONTAINER:-proj26-training-data}
+      ICEBERG_S3_ENDPOINT: ${ICEBERG_S3_ENDPOINT:-https://chi.uc.chameleoncloud.org:7480}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags:ro
+      - ./airflow/requirements.txt:/opt/airflow/extra-requirements.txt:ro
+      - airflow_logs:/opt/airflow/logs
+    command: >
+      bash -c "
+        pip install --quiet -r /opt/airflow/extra-requirements.txt &&
+        airflow scheduler
+      "
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redpanda:
+        condition: service_healthy
     restart: unless-stopped
 
   # ---------------------------------------------------------------------------
@@ -297,3 +443,5 @@ volumes:
   grafana_data:
   qdrant_data:
   prefect_data:
+  redpanda_data:
+  airflow_logs:

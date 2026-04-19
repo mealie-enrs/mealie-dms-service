@@ -13,7 +13,7 @@ import pyarrow.parquet as pq
 from dms.celery_app import celery_app
 from dms.config import settings
 from dms.db import SessionLocal
-from dms.models import Dataset, DatasetItem, DatasetVersion, Job, JobStatus, Object, Upload, UploadStatus
+from dms.models import Dataset, DatasetItem, DatasetVersion, Job, JobStatus, Object, ObjectSource, Upload, UploadStatus
 from dms.recipe1m import iter_sample_image_urls, upload_curated_object, upload_raw_sample
 from dms.storage import copy_object, ensure_container, put_bytes, put_file_path, put_text, write_version_meta
 
@@ -172,6 +172,7 @@ def process_upload_approval(job_id: int, upload_id: int, approve: bool) -> None:
             width=upload.width,
             height=upload.height,
             source_upload_id=upload.id,
+            source=ObjectSource.user_upload,
         )
         db.add(obj)
         db.commit()
@@ -576,6 +577,40 @@ def run_training_pipeline(
         enable_augmentation=enable_augmentation,
     )
     return result
+
+
+@celery_app.task(name="dms.tasks.score_upload_risk")
+def score_upload_risk(upload_id: int) -> float:
+    """
+    Compute and persist a risk score for an upload immediately after creation.
+    Called asynchronously from POST /uploads/init so it never blocks the response.
+    """
+    from dms.risk_scorer import compute_risk_score
+
+    log = logging.getLogger(__name__)
+    db = SessionLocal()
+    try:
+        upload = db.get(Upload, upload_id)
+        if not upload:
+            return 0.0
+
+        score = compute_risk_score(
+            user_id=upload.user_id,
+            upload_id=upload.id,
+            mime_type=upload.mime_type,
+            filename=upload.original_filename,
+        )
+        upload.risk_score = score
+        upload.updated_at = datetime.utcnow()
+        db.commit()
+        log.info("Risk scored upload_id=%s score=%.3f", upload_id, score)
+        return score
+    except Exception as exc:
+        db.rollback()
+        log.warning("Risk scoring task failed for upload_id=%s: %s", upload_id, exc)
+        return 0.0
+    finally:
+        db.close()
 
 
 @celery_app.task(name="dms.tasks.cleanup_stale_uploads")

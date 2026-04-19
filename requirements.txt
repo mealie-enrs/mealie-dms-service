@@ -45,6 +45,12 @@ albumentations==1.4.18
 # --- Kaggle ------------------------------------------------------------------
 kagglehub==0.3.6
 
+# --- Event streaming (Redpanda / Kafka) --------------------------------------
+confluent-kafka==2.4.0
+
+# --- Iceberg lakehouse -------------------------------------------------------
+pyiceberg[s3,pyarrow,sql-postgres]==0.7.1
+
 # Note: dvc is a developer/CI CLI tool — install it on your laptop or in the
 # CI runner, not inside the app image. See .dvc/config and dvc.yaml.
 # pip install "dvc[s3]"

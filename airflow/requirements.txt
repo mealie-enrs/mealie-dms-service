@@ -1,0 +1,7 @@
+# Extra dependencies installed into the Airflow image at container startup.
+# These are NOT part of the main DMS app image.
+confluent-kafka==2.4.0
+redis==5.0.8
+pyiceberg[s3,pyarrow,sql-postgres]==0.7.1
+sqlalchemy==2.0.40
+psycopg2-binary==2.9.9

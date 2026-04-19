@@ -2,7 +2,7 @@
 
 Deployment target: **CPU node `192.5.87.45`** (`proj26-mealie-node-cpu`)  
 Deployed: 2026-04-18  
-Stack: Docker Compose (12 containers)
+Stack: Docker Compose (18 containers)
 
 ---
 
@@ -19,6 +19,8 @@ Stack: Docker Compose (12 containers)
 | **Metabase** | http://192.5.87.45:3001 | set on first login |
 | **Qdrant UI** | http://192.5.87.45:6333/dashboard | — |
 | **Prefect UI** | http://192.5.87.45:4200 | — |
+| **Redpanda Console** | http://192.5.87.45:8080 | — |
+| **Airflow** | http://192.5.87.45:8085 | admin / admin |
 
 ---
 
@@ -49,6 +51,11 @@ SSH key: `~/.ssh/id_rsa_chameleon`, user: `cc`
 | `dms-cadvisor` | `gcr.io/cadvisor/cadvisor:v0.49.1` | — | Container metrics |
 | `dms-redis-exporter` | `oliver006/redis_exporter:v1.58.0` | — | Redis metrics |
 | `dms-postgres-exporter` | `prometheuscommunity/postgres-exporter:v0.15.0` | — | Postgres metrics |
+| `dms-redpanda` | `redpandadata/redpanda:v24.1.1` | `19092` | Kafka-compatible event broker |
+| `dms-redpanda-console` | `redpandadata/console:v2.6.0` | `8080` | Redpanda web UI |
+| `dms-stream-consumer` | built locally | — | Rolling window feature writer (Redis) |
+| `dms-airflow-webserver` | `apache/airflow:2.9.1-python3.11` | `8085` | Airflow web UI |
+| `dms-airflow-scheduler` | `apache/airflow:2.9.1-python3.11` | — | Airflow DAG scheduler |
 
 ---
 

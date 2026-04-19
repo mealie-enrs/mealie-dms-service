@@ -95,19 +95,70 @@ class PipelineStats:
     skipped_no_image: int = 0
     skipped_too_small: int = 0
     skipped_duplicate: int = 0
+    skipped_deleted: int = 0
+    skipped_test: int = 0
+    skipped_source: int = 0
     train: int = 0
     val: int = 0
     test: int = 0
     augmented: int = 0
 
 
+@dataclass
+class GovernanceFilter:
+    """
+    Controls which objects are eligible for training.
+
+    Mirrors the filtering logic from the GourmetGram data platform pattern:
+    - Exclude soft-deleted objects (GDPR / user request compliance)
+    - Exclude test / synthetic traffic (keeps metrics clean)
+    - Exclude objects from specific sources when building a user-upload-only slice
+    """
+    exclude_deleted: bool = True        # skip objects with deleted_at IS NOT NULL
+    exclude_test_accounts: bool = True  # skip objects where is_test_account = True
+    allowed_sources: list[str] = field(
+        default_factory=lambda: ["kaggle", "recipe1m", "user_upload"]
+    )
+
+
+def _apply_governance_filters(
+    db_objects: list,
+    gf: GovernanceFilter,
+    stats: PipelineStats,
+) -> list:
+    """Filter ORM Object rows according to governance rules."""
+    eligible = []
+    for obj in db_objects:
+        source = getattr(obj, "source", "kaggle")
+        deleted_at = getattr(obj, "deleted_at", None)
+        is_test = getattr(obj, "is_test_account", False)
+
+        if gf.exclude_deleted and deleted_at is not None:
+            stats.skipped_deleted += 1
+            continue
+        if gf.exclude_test_accounts and is_test:
+            stats.skipped_test += 1
+            continue
+        source_val = source.value if hasattr(source, "value") else str(source)
+        if source_val not in gf.allowed_sources:
+            stats.skipped_source += 1
+            continue
+        eligible.append(obj)
+    return eligible
+
+
 def compile_dataset(
     container: str | None = None,
     version: str = "v1",
+    governance: GovernanceFilter | None = None,
 ) -> tuple[list[RecipeRecord], PipelineStats]:
     """Run the full batch pipeline and return records + stats."""
     container = container or settings.swift_training_container
     stats = PipelineStats()
+    # gf is used here for source-level filtering (e.g. exclude 'synthetic' from
+    # CSV-sourced records) and is also passed to callers that do Postgres-level
+    # filtering via _apply_governance_filters.
+    gf = governance or GovernanceFilter()
 
     csv_rows = _load_csv_from_swift(container)
     stats.csv_rows = len(csv_rows)
@@ -144,6 +195,12 @@ def compile_dataset(
             continue
         seen_titles.add(norm_title)
 
+        # Governance: this pipeline always produces "kaggle"-source records.
+        # Skip if the caller has restricted allowed sources.
+        if "kaggle" not in gf.allowed_sources:
+            stats.skipped_source += 1
+            continue
+
         split = _deterministic_split(norm_title)
         object_key = f"{IMAGE_PREFIX}{filename}"
 
@@ -170,9 +227,11 @@ def compile_dataset(
 
     log.info(
         "Pipeline stats: matched=%d train=%d val=%d test=%d "
-        "skipped_no_image=%d skipped_small=%d skipped_dup=%d",
+        "skipped_no_image=%d skipped_small=%d skipped_dup=%d "
+        "skipped_deleted=%d skipped_test=%d skipped_source=%d",
         stats.matched, stats.train, stats.val, stats.test,
         stats.skipped_no_image, stats.skipped_too_small, stats.skipped_duplicate,
+        stats.skipped_deleted, stats.skipped_test, stats.skipped_source,
     )
     return records, stats
 

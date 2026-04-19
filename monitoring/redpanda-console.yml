@@ -1,0 +1,11 @@
+kafka:
+  brokers:
+    - redpanda:9092
+
+connect:
+  enabled: false
+
+schemaRegistry:
+  enabled: true
+  urls:
+    - url: http://redpanda:8081

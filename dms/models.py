@@ -1,7 +1,7 @@
 from datetime import datetime
 from enum import Enum
 
-from sqlalchemy import DateTime, Enum as SQLEnum, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, Enum as SQLEnum, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from dms.db import Base
@@ -21,6 +21,14 @@ class JobStatus(str, Enum):
     failed = "failed"
 
 
+class ObjectSource(str, Enum):
+    """Where the object came from — used to filter training data."""
+    user_upload = "user_upload"   # real user submitted via the upload API
+    kaggle = "kaggle"             # downloaded from Kaggle via download_kaggle_dataset
+    recipe1m = "recipe1m"        # ingested from Recipe1M public dataset
+    synthetic = "synthetic"      # generated / augmented by the pipeline
+
+
 class Upload(Base):
     __tablename__ = "uploads"
 
@@ -34,6 +42,13 @@ class Upload(Base):
     checksum_sha256: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
     width: Mapped[int | None] = mapped_column(Integer, nullable=True)
     height: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    # Governance fields
+    country: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    is_test_account: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    risk_score: Mapped[float | None] = mapped_column(Float, nullable=True, index=True)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -48,6 +63,14 @@ class Object(Base):
     width: Mapped[int | None] = mapped_column(Integer, nullable=True)
     height: Mapped[int | None] = mapped_column(Integer, nullable=True)
     source_upload_id: Mapped[int | None] = mapped_column(ForeignKey("uploads.id"), nullable=True)
+
+    # Governance fields
+    source: Mapped[ObjectSource] = mapped_column(
+        SQLEnum(ObjectSource), default=ObjectSource.user_upload, nullable=False, index=True
+    )
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
+    is_test_account: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 

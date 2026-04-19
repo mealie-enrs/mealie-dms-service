@@ -67,6 +67,17 @@ ENABLE_SODA_CHECKS="false"
 SODA_CONFIGURATION_FILE="quality/soda/configuration.yml"
 SODA_CHECKS_FILE="quality/soda/checks.yml"
 
+# --- Iceberg lakehouse (uses same Swift S3 endpoint as object store) ---------
+ICEBERG_S3_ENDPOINT="https://chi.uc.chameleoncloud.org:7480"
+# AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY must be set in the environment
+# to the Chameleon EC2 credentials before running deploy.sh, or added here.
+AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID:-}"
+AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY:-}"
+
+# --- Airflow -----------------------------------------------------------------
+AIRFLOW_ADMIN_PASSWORD="admin"
+AIRFLOW_SECRET_KEY="dms-airflow-secret-$(hostname -s)"
+
 # =============================================================================
 # SCRIPT — do not edit below this line
 # =============================================================================
@@ -164,6 +175,15 @@ QDRANT_COLLECTION=${QDRANT_COLLECTION}
 # Prefect
 PREFECT_API_URL=${PREFECT_API_URL}
 
+# Iceberg
+ICEBERG_S3_ENDPOINT=${ICEBERG_S3_ENDPOINT}
+AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+
+# Airflow
+AIRFLOW_ADMIN_PASSWORD=${AIRFLOW_ADMIN_PASSWORD}
+AIRFLOW_SECRET_KEY=${AIRFLOW_SECRET_KEY}
+
 # Monitoring
 GRAFANA_USER=${GRAFANA_USER}
 GRAFANA_PASSWORD=${GRAFANA_PASSWORD}
@@ -217,15 +237,18 @@ echo ""
 echo -e "${GREEN}============================================================${NC}"
 echo -e "${GREEN}  DMS stack is up${NC}"
 echo -e "${GREEN}============================================================${NC}"
-  echo -e "  API        →  http://${HOST_IP}:${DMS_API_PORT}"
-  echo -e "  API health →  http://${HOST_IP}:${DMS_API_PORT}/healthz"
-  echo -e "  Metabase   →  http://${HOST_IP}:${METABASE_PORT}"
-  echo -e "  Qdrant     →  http://${HOST_IP}:6333"
-  echo -e "  Prefect    →  http://${HOST_IP}:4200"
-  echo -e "  Grafana    →  http://${HOST_IP}:3000  (${GRAFANA_USER} / ${GRAFANA_PASSWORD})"
-  echo -e "  Prometheus →  http://${HOST_IP}:9090"
-  echo -e "  Postgres   →  ${HOST_IP}:5432  (user: ${POSTGRES_USER})"
-  echo -e "  Redis      →  ${HOST_IP}:${REDIS_PORT}"
+  echo -e "  API            →  http://${HOST_IP}:${DMS_API_PORT}"
+  echo -e "  API health     →  http://${HOST_IP}:${DMS_API_PORT}/healthz"
+  echo -e "  Metabase       →  http://${HOST_IP}:${METABASE_PORT}"
+  echo -e "  Qdrant         →  http://${HOST_IP}:6333"
+  echo -e "  Prefect        →  http://${HOST_IP}:4200"
+  echo -e "  Redpanda       →  kafka://${HOST_IP}:19092  (external)"
+  echo -e "  Redpanda UI    →  http://${HOST_IP}:8080"
+  echo -e "  Airflow        →  http://${HOST_IP}:8085  (admin / ${AIRFLOW_ADMIN_PASSWORD})"
+  echo -e "  Grafana        →  http://${HOST_IP}:3000  (${GRAFANA_USER} / ${GRAFANA_PASSWORD})"
+  echo -e "  Prometheus     →  http://${HOST_IP}:9090"
+  echo -e "  Postgres       →  ${HOST_IP}:5432  (user: ${POSTGRES_USER})"
+  echo -e "  Redis          →  ${HOST_IP}:${REDIS_PORT}"
 echo ""
 echo -e "  Useful commands:"
 echo -e "    docker compose ps"

@@ -21,6 +21,7 @@ from dms.schemas import (
     UploadInitRequest,
     UploadInitResponse,
 )
+from dms import events
 from dms.tasks import (
     compile_recipenlg_dataset,
     compile_training_dataset,
@@ -28,6 +29,7 @@ from dms.tasks import (
     ingest_recipe1m_sample,
     process_upload_approval,
     publish_dataset_version,
+    score_upload_risk,
 )
 
 app = FastAPI(title="DMS API")
@@ -129,6 +131,7 @@ async def inference_features(
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
+    events.emit_inference_request(None, top_k_value, len(matches))
     return {
         "model": settings.inference_model_name,
         "embedding_dim": int(embedding.shape[0]),
@@ -153,6 +156,10 @@ def init_upload(payload: UploadInitRequest, db: Session = Depends(get_db)) -> Up
     db.add(upload)
     db.commit()
     db.refresh(upload)
+
+    events.emit_upload_created(upload.id, payload.user_id, payload.filename)
+    score_upload_risk.delay(upload.id)
+
     return UploadInitResponse(upload_id=upload.id, incoming_key=incoming_key)
 
 
@@ -177,6 +184,7 @@ def approve_upload(upload_id: int, payload: ApproveUploadRequest, db: Session = 
     job.celery_task_id = task.id
     db.commit()
 
+    events.emit_upload_approved(upload_id, upload.user_id, payload.approve)
     return {"job_id": job.id, "task_id": task.id, "status": job.status}
 
 
