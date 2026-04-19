@@ -78,6 +78,48 @@ class TrainingPipelineRequest(BaseModel):
     )
 
 
+class DraftRequest(BaseModel):
+    """Request a recipe draft generated from a food image."""
+
+    image_b64: str | None = Field(
+        default=None,
+        description="Base64-encoded image (JPEG/PNG). Either this or swift_key is required.",
+    )
+    swift_key: str | None = Field(
+        default=None,
+        description="Object key in the Swift training container, e.g. "
+                    "'recipe1m/kaggle-food-images/Food Images/Food Images/0.jpg'. "
+                    "Used when the image is already stored in Swift.",
+    )
+    top_k: int = Field(
+        default=5, ge=1, le=20,
+        description="Number of nearest-neighbour recipes to retrieve from Qdrant.",
+    )
+
+
+class ImageValidationSchema(BaseModel):
+    is_valid: bool
+    blur_score: float
+    food_confidence: float
+    rejection_reason: str | None = None
+    width: int = 0
+    height: int = 0
+
+
+class DraftResponse(BaseModel):
+    """Structured recipe draft returned by POST /inference/draft."""
+
+    draft_id: str = Field(description="UUID — include in feedback payload to link draft → final recipe.")
+    validation: ImageValidationSchema
+    title: str
+    ingredients: list[str]
+    steps: list[str]
+    tags: list[str]
+    confidence: float = Field(description="Overall draft quality signal, 0.0–1.0.")
+    disclaimer: str
+    top_k_matches: list[dict] = Field(description="Raw Qdrant nearest-neighbour results.")
+
+
 class KaggleDatasetDownloadRequest(BaseModel):
     """Download a Kaggle dataset on the worker and optionally upload to Swift."""
 

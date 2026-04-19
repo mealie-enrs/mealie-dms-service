@@ -15,6 +15,8 @@ from dms.schemas import (
     CompileRecipeNLGDatasetRequest,
     CompileTrainingDatasetRequest,
     DatasetCreateRequest,
+    DraftRequest,
+    DraftResponse,
     KaggleDatasetDownloadRequest,
     PublishVersionRequest,
     Recipe1MSampleIngestRequest,
@@ -140,6 +142,68 @@ async def inference_features(
         "top_k": top_k_value,
         "matches": matches,
     }
+
+
+@app.post("/inference/draft", response_model=DraftResponse)
+async def inference_draft(payload: DraftRequest) -> DraftResponse:
+    """
+    Generate a structured recipe draft from a food image.
+
+    Accepts either a base64-encoded image (image_b64) or a Swift object key
+    (swift_key). Returns a complete recipe draft with title, ingredients,
+    steps, tags, confidence score, and a draft_id for downstream feedback capture.
+
+    The draft is template-based (fast, no LLM required).  The draft_id should
+    be stored by the caller and included in the POST /feedback payload when the
+    user approves/edits the recipe, enabling the retraining feedback loop.
+    """
+    from dms import draft as draft_module
+
+    # --- Resolve raw image bytes ---
+    raw_bytes: bytes | None = None
+    try:
+        if payload.image_b64:
+            raw_bytes = inference.decode_image_bytes(image_base64=payload.image_b64)
+        elif payload.swift_key:
+            from dms.storage import require_swift
+            conn = require_swift()
+            _, data = conn.get_object(settings.swift_training_container, payload.swift_key)
+            raw_bytes = bytes(data)
+        else:
+            raise HTTPException(
+                status_code=422,
+                detail="Provide either image_b64 (base64 string) or swift_key.",
+            )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Could not load image: {exc}") from exc
+
+    # --- Embed + retrieve top-K ---
+    try:
+        embedding = inference.compute_embedding(raw_bytes)
+        matches = inference.search_qdrant(embedding, payload.top_k)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Embedding/retrieval failed: {exc}") from exc
+
+    # --- Generate draft ---
+    result = draft_module.generate_draft(raw_bytes, matches, swift_key=payload.swift_key)
+
+    events.emit_inference_request(None, payload.top_k, len(matches))
+
+    return DraftResponse(
+        draft_id=result.draft_id,
+        validation=result.validation.__dict__,
+        title=result.title,
+        ingredients=result.ingredients,
+        steps=result.steps,
+        tags=result.tags,
+        confidence=result.confidence,
+        disclaimer=result.disclaimer,
+        top_k_matches=result.top_k_matches,
+    )
 
 
 @app.post("/uploads/init", response_model=UploadInitResponse)
