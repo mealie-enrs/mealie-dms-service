@@ -89,6 +89,9 @@ jobs:
             echo "==> Tagging as dms-app:local so compose picks it up ..."
             docker tag "$IMAGE_NAME:$GITHUB_SHA" dms-app:local
 
+            echo "==> Updating DMS_IMAGE in .env to new SHA ..."
+            sed -i "s|^DMS_IMAGE=.*|DMS_IMAGE=$IMAGE_NAME:$GITHUB_SHA|" .env
+
             echo "==> Restarting containers with new image ..."
             docker compose up -d --no-build --force-recreate
 
