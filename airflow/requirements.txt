@@ -4,5 +4,6 @@ confluent-kafka==2.4.0
 redis==5.0.8
 pyiceberg[s3,pyarrow,sql-postgres]==0.7.1
 psycopg2-binary==2.9.9
-# sqlalchemy is intentionally omitted — Airflow 2.9 ships with SQLAlchemy 1.4
-# and upgrading to 2.0 breaks its internal ORM mappings.
+# Pin SQLAlchemy below 2.0 — Airflow 2.9 requires 1.4.x and pyiceberg[sql-postgres]
+# would otherwise pull in 2.x which breaks Airflow's internal ORM.
+sqlalchemy>=1.4,<2.0
