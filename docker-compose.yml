@@ -220,12 +220,12 @@ services:
 
   # ---------------------------------------------------------------------------
   # Stream consumer — reads Redpanda events, writes rolling windows to Redis
+  # Uses the main DMS image (confluent-kafka + redis already installed)
   # ---------------------------------------------------------------------------
   stream-consumer:
-    build:
-      context: .
-      dockerfile: services/stream_consumer/Dockerfile
+    image: ${DMS_IMAGE:-dms-app:local}
     container_name: dms-stream-consumer
+    command: ["python", "-m", "dms.stream_consumer"]
     environment:
       KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
       KAFKA_CONSUMER_GROUP: dms-stream-consumer
