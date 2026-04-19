@@ -267,7 +267,7 @@ services:
     command: >
       bash -c "
         pip install --quiet -r /opt/airflow/extra-requirements.txt &&
-        airflow db upgrade &&
+        airflow db init 2>/dev/null || airflow db upgrade &&
         airflow users create --username admin --firstname Admin --lastname User
           --role Admin --email admin@dms.local --password ${AIRFLOW_ADMIN_PASSWORD:-admin} 2>/dev/null || true &&
         airflow webserver --port 8085
@@ -302,7 +302,7 @@ services:
     command: >
       bash -c "
         pip install --quiet -r /opt/airflow/extra-requirements.txt &&
-        airflow db upgrade &&
+        airflow db init 2>/dev/null || airflow db upgrade &&
         airflow scheduler
       "
     depends_on:

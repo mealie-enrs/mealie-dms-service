@@ -1,9 +1,8 @@
 # Extra dependencies installed into the Airflow image at container startup.
 # These are NOT part of the main DMS app image.
+# NOTE: pyiceberg is intentionally excluded — it requires sqlalchemy>=2.0 which
+# conflicts with Airflow 2.9's sqlalchemy<2.0 requirement.
+# Airflow DAGs read from Postgres directly via psycopg2 instead.
 confluent-kafka==2.4.0
 redis==5.0.8
-pyiceberg[s3,pyarrow,sql-postgres]==0.7.1
 psycopg2-binary==2.9.9
-# Pin SQLAlchemy below 2.0 — Airflow 2.9 requires 1.4.x and pyiceberg[sql-postgres]
-# would otherwise pull in 2.x which breaks Airflow's internal ORM.
-sqlalchemy>=1.4,<2.0
