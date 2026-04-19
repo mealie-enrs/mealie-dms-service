@@ -43,6 +43,12 @@ class CompileTrainingDatasetRequest(BaseModel):
         default=None,
         description="Swift container (defaults to SWIFT_TRAINING_CONTAINER).",
     )
+    enable_augmentation: bool = Field(
+        default=False,
+        description="Generate synthetic augmented variants via Albumentations. "
+                    "Slow (requires 4 Swift round-trips per training image). "
+                    "Disable for fast index builds; enable only for final training runs.",
+    )
 
 
 class CompileRecipeNLGDatasetRequest(BaseModel):

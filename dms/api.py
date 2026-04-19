@@ -302,7 +302,8 @@ def compile_dataset(
     db.refresh(job)
 
     task = compile_training_dataset.delay(
-        job.id, dataset_id, payload.version, payload.container
+        job.id, dataset_id, payload.version, payload.container,
+        payload.enable_augmentation,
     )
     job.celery_task_id = task.id
     db.commit()

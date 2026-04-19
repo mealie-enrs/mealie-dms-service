@@ -383,6 +383,7 @@ def compile_training_dataset(
     dataset_id: int,
     version: str = "v1",
     container: str | None = None,
+    enable_augmentation: bool = False,
 ) -> None:
     from dms.batch_pipeline import compile_dataset, write_manifest
 
@@ -402,7 +403,10 @@ def compile_training_dataset(
             _set_job_state(db, job_id, JobStatus.failed, "no records after candidate selection")
             return
 
-        manifest_key, meta_key = write_manifest(records, stats, container=target, version=version)
+        manifest_key, meta_key = write_manifest(
+            records, stats, container=target, version=version,
+            enable_augmentation=enable_augmentation,
+        )
 
         dv = DatasetVersion(
             dataset_id=dataset_id,
