@@ -225,8 +225,8 @@ services:
   stream-consumer:
     image: ${DMS_IMAGE:-dms-app:local}
     container_name: dms-stream-consumer
-    command: ["python", "-m", "dms.stream_consumer"]
     environment:
+      DMS_ROLE: stream-consumer
       KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
       KAFKA_CONSUMER_GROUP: dms-stream-consumer
       KAFKA_TOPICS: dms.uploads,dms.approvals,dms.inference
@@ -300,6 +300,7 @@ services:
     command: >
       bash -c "
         pip install --quiet -r /opt/airflow/extra-requirements.txt &&
+        airflow db upgrade &&
         airflow scheduler
       "
     depends_on:

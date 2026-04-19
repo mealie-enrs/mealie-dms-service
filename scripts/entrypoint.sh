@@ -13,8 +13,11 @@ case "$ROLE" in
   scheduler)
     exec celery -A dms.celery_app:celery_app beat --loglevel=INFO
     ;;
+  stream-consumer)
+    exec python -m dms.stream_consumer
+    ;;
   *)
-    echo "Unknown DMS_ROLE=$ROLE; expected one of: api, worker, scheduler"
+    echo "Unknown DMS_ROLE=$ROLE; expected one of: api, worker, scheduler, stream-consumer"
     exit 1
     ;;
 esac
