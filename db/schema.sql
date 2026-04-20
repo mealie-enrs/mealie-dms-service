@@ -60,9 +60,33 @@ CREATE TABLE IF NOT EXISTS jobs (
   updated_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS draft_captures (
+  draft_id VARCHAR(36) PRIMARY KEY,
+  image_key VARCHAR(1024),
+  draft_shown JSONB NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS feedback (
+  id SERIAL PRIMARY KEY,
+  draft_id VARCHAR(36) NOT NULL REFERENCES draft_captures(draft_id),
+  image_key VARCHAR(1024),
+  draft_shown JSONB NOT NULL,
+  final_saved JSONB,
+  edit_distance FLOAT,
+  action VARCHAR(32) NOT NULL CHECK (action IN ('approved', 'edited', 'rejected')),
+  consent BOOLEAN NOT NULL DEFAULT FALSE,
+  mealie_recipe_slug VARCHAR(512),
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
 CREATE INDEX IF NOT EXISTS idx_uploads_user_id ON uploads(user_id);
 CREATE INDEX IF NOT EXISTS idx_uploads_checksum ON uploads(checksum_sha256);
 CREATE INDEX IF NOT EXISTS idx_objects_checksum ON objects(checksum_sha256);
 CREATE INDEX IF NOT EXISTS idx_versions_dataset_id ON dataset_versions(dataset_id);
 CREATE INDEX IF NOT EXISTS idx_dataset_items_version_id ON dataset_items(dataset_version_id);
 CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
+CREATE INDEX IF NOT EXISTS idx_draft_captures_image_key ON draft_captures(image_key);
+CREATE INDEX IF NOT EXISTS idx_feedback_draft_id ON feedback(draft_id);
+CREATE INDEX IF NOT EXISTS idx_feedback_action ON feedback(action);
+CREATE INDEX IF NOT EXISTS idx_feedback_image_key ON feedback(image_key);

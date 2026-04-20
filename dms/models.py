@@ -1,7 +1,7 @@
 from datetime import datetime
 from enum import Enum
 
-from sqlalchemy import Boolean, DateTime, Enum as SQLEnum, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, Boolean, DateTime, Enum as SQLEnum, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from dms.db import Base
@@ -27,6 +27,12 @@ class ObjectSource(str, Enum):
     kaggle = "kaggle"             # downloaded from Kaggle via download_kaggle_dataset
     recipe1m = "recipe1m"        # ingested from Recipe1M public dataset
     synthetic = "synthetic"      # generated / augmented by the pipeline
+
+
+class FeedbackAction(str, Enum):
+    approved = "approved"
+    edited = "edited"
+    rejected = "rejected"
 
 
 class Upload(Base):
@@ -116,3 +122,27 @@ class Job(Base):
     message: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class DraftCapture(Base):
+    __tablename__ = "draft_captures"
+
+    draft_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    image_key: Mapped[str | None] = mapped_column(String(1024), nullable=True, index=True)
+    draft_shown: Mapped[dict] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+class Feedback(Base):
+    __tablename__ = "feedback"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    draft_id: Mapped[str] = mapped_column(ForeignKey("draft_captures.draft_id"), index=True)
+    image_key: Mapped[str | None] = mapped_column(String(1024), nullable=True, index=True)
+    draft_shown: Mapped[dict] = mapped_column(JSON, nullable=False)
+    final_saved: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    edit_distance: Mapped[float | None] = mapped_column(Float, nullable=True)
+    action: Mapped[FeedbackAction] = mapped_column(SQLEnum(FeedbackAction), nullable=False, index=True)
+    consent: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    mealie_recipe_slug: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)

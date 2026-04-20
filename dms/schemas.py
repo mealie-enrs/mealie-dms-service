@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class UploadInitRequest(BaseModel):
@@ -96,6 +96,12 @@ class DraftRequest(BaseModel):
         description="Number of nearest-neighbour recipes to retrieve from Qdrant.",
     )
 
+    @model_validator(mode="after")
+    def validate_input_source(self) -> "DraftRequest":
+        if not self.image_b64 and not self.swift_key:
+            raise ValueError("Either image_b64 or swift_key must be provided.")
+        return self
+
 
 class ImageValidationSchema(BaseModel):
     is_valid: bool
@@ -118,6 +124,40 @@ class DraftResponse(BaseModel):
     confidence: float = Field(description="Overall draft quality signal, 0.0–1.0.")
     disclaimer: str
     top_k_matches: list[dict] = Field(description="Raw Qdrant nearest-neighbour results.")
+
+
+class FeedbackRequest(BaseModel):
+    draft_id: str = Field(min_length=1)
+    final_title: str = ""
+    final_ingredients: list[str] = Field(default_factory=list)
+    final_steps: list[str] = Field(default_factory=list)
+    action: str = Field(description="approved | edited | rejected")
+    mealie_recipe_slug: str | None = None
+    consent: bool = False
+
+    @model_validator(mode="after")
+    def validate_action(self) -> "FeedbackRequest":
+        allowed = {"approved", "edited", "rejected"}
+        if self.action not in allowed:
+            raise ValueError(f"action must be one of: {', '.join(sorted(allowed))}")
+        return self
+
+
+class FeedbackResponse(BaseModel):
+    status: str
+    draft_id: str
+    feedback_id: int
+    edit_distance: float | None = None
+
+
+class FeedbackMetricsResponse(BaseModel):
+    total: int
+    approved: int
+    edited: int
+    rejected: int
+    approval_rate: float
+    avg_consent_rate: float
+    avg_edit_distance: float | None = None
 
 
 class KaggleDatasetDownloadRequest(BaseModel):

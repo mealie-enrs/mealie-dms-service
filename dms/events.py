@@ -10,6 +10,7 @@ Topics:
   dms.approvals  → upload approved or rejected
   dms.inference  → inference request made (image → Qdrant query)
   dms.jobs       → job status changes (queued / running / succeeded / failed)
+  dms.feedback   → draft review outcome captured from Mealie
 
 Event shape (all topics):
   {
@@ -33,10 +34,11 @@ from typing import Any
 log = logging.getLogger(__name__)
 
 # Topic names
-TOPIC_UPLOADS   = "dms.uploads"
+TOPIC_UPLOADS = "dms.uploads"
 TOPIC_APPROVALS = "dms.approvals"
 TOPIC_INFERENCE = "dms.inference"
-TOPIC_JOBS      = "dms.jobs"
+TOPIC_JOBS = "dms.jobs"
+TOPIC_FEEDBACK = "dms.feedback"
 
 _producer = None
 
@@ -49,6 +51,7 @@ def _get_producer():
     bootstrap = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "redpanda:9092")
     try:
         from confluent_kafka import Producer
+
         _producer = Producer({"bootstrap.servers": bootstrap})
         log.info("Kafka producer connected to %s", bootstrap)
     except Exception as exc:
@@ -75,29 +78,27 @@ def _publish(topic: str, payload: dict[str, Any]) -> None:
         log.warning("Failed to publish event to %s: %s", topic, exc)
 
 
-# ── Public helpers ────────────────────────────────────────────────────────────
-
 def emit_upload_created(upload_id: int, user_id: str, filename: str) -> None:
     _publish(TOPIC_UPLOADS, {
         "upload_id": upload_id,
-        "user_id":   user_id,
-        "filename":  filename,
+        "user_id": user_id,
+        "filename": filename,
     })
 
 
 def emit_upload_approved(upload_id: int, user_id: str, approved: bool, object_key: str | None = None) -> None:
     _publish(TOPIC_APPROVALS, {
-        "upload_id":  upload_id,
-        "user_id":    user_id,
-        "approved":   approved,
+        "upload_id": upload_id,
+        "user_id": user_id,
+        "approved": approved,
         "object_key": object_key,
     })
 
 
 def emit_inference_request(upload_id: int | None, top_k: int, match_count: int) -> None:
     _publish(TOPIC_INFERENCE, {
-        "upload_id":   upload_id,
-        "top_k":       top_k,
+        "upload_id": upload_id,
+        "top_k": top_k,
         "match_count": match_count,
     })
 
@@ -105,6 +106,26 @@ def emit_inference_request(upload_id: int | None, top_k: int, match_count: int) 
 def emit_job_status(job_id: int, kind: str, status: str) -> None:
     _publish(TOPIC_JOBS, {
         "job_id": job_id,
-        "kind":   kind,
+        "kind": kind,
         "status": status,
+    })
+
+
+def emit_feedback_captured(
+    feedback_id: int,
+    draft_id: str,
+    action: str,
+    consent: bool,
+    edit_distance: float | None,
+    image_key: str | None = None,
+    mealie_recipe_slug: str | None = None,
+) -> None:
+    _publish(TOPIC_FEEDBACK, {
+        "feedback_id": feedback_id,
+        "draft_id": draft_id,
+        "action": action,
+        "consent": consent,
+        "edit_distance": edit_distance,
+        "image_key": image_key,
+        "mealie_recipe_slug": mealie_recipe_slug,
     })

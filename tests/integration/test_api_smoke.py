@@ -69,3 +69,19 @@ def test_upload_init_persists_metadata_only(client: httpx.Client) -> None:
 def test_job_not_found(client: httpx.Client) -> None:
     r = client.get("/jobs/999999999")
     assert r.status_code == 404
+
+
+def test_feedback_requires_existing_draft_snapshot(client: httpx.Client) -> None:
+    r = client.post(
+        "/feedback",
+        json={
+            "draft_id": str(uuid.uuid4()),
+            "final_title": "Example",
+            "final_ingredients": ["1 egg"],
+            "final_steps": ["Cook it"],
+            "action": "approved",
+            "consent": True,
+        },
+    )
+    assert r.status_code == 404
+    assert r.json()["detail"] == "draft not found"
