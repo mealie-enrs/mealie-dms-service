@@ -6,7 +6,7 @@ from difflib import SequenceMatcher
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import Response
-from sqlalchemy import Float, func
+from sqlalchemy import Float, Integer, func
 from sqlalchemy.orm import Session
 
 from dms import events
@@ -120,7 +120,7 @@ def _feedback_metrics_snapshot(db: Session) -> dict[str, float | int | None]:
     approved = counts.get(FeedbackAction.approved.value, 0)
     edited = counts.get(FeedbackAction.edited.value, 0)
     rejected = counts.get(FeedbackAction.rejected.value, 0)
-    avg_consent_rate = db.query(func.avg(func.cast(Feedback.consent, Float))).scalar()
+    avg_consent_rate = db.query(func.avg(func.cast(Feedback.consent, Integer))).scalar()
     avg_edit_distance = db.query(func.avg(Feedback.edit_distance)).scalar()
 
     return {
