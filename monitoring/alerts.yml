@@ -1,0 +1,61 @@
+groups:
+  - name: mealie-ml-system
+    rules:
+      - alert: DMSApiDown
+        expr: up{job="dms-api"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: DMS API is down
+          description: The DMS API endpoint has not been scrapeable for at least 2 minutes.
+
+      - alert: MealieMlMetricsDown
+        expr: up{job="mealie-ml"} == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Mealie ML metrics endpoint is unavailable
+          description: Prometheus cannot scrape the Mealie ML metrics endpoint.
+
+      - alert: ModelServeProductionDown
+        expr: up{job="mms-production"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: Model-serve production lane is down
+          description: The production inference lane has stopped responding to Prometheus scrapes.
+
+      - alert: ModelServeCanaryDown
+        expr: up{job="mms-canary"} == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Model-serve canary lane is down
+          description: The canary inference lane has stopped responding to Prometheus scrapes.
+
+      - alert: ModelServeHigh5xxRate
+        expr: |
+          (
+            sum(rate(mms_serving_requests_total{job=~"mms-production|mms-canary",status=~"5.."}[5m]))
+            /
+            clamp_min(sum(rate(mms_serving_requests_total{job=~"mms-production|mms-canary"}[5m])), 1)
+          ) > 0.05
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Model-serve is returning too many 5xx responses
+          description: More than 5% of model-serve responses have been 5xx for 10 minutes.
+
+      - alert: LowRecipeApprovalRate
+        expr: dms_feedback_total > 10 and dms_feedback_approval_rate < 0.45
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: Recipe approval rate has fallen
+          description: Approval rate is below 45% after enough feedback volume to matter.

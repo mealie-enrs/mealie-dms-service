@@ -1,15 +1,29 @@
-import logging
 import json
+import logging
 import uuid
 from datetime import datetime
+from difflib import SequenceMatcher
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi.responses import Response
+from sqlalchemy import Float, func
 from sqlalchemy.orm import Session
 
-from dms.config import settings
-from dms.db import Base, engine, get_db
+from dms import events
 from dms import inference
-from dms.models import Dataset, DatasetVersion, Job, JobStatus, Upload, UploadStatus
+from dms.config import settings
+from dms.db import Base, SessionLocal, engine, get_db
+from dms.models import (
+    Dataset,
+    DatasetVersion,
+    DraftCapture,
+    Feedback,
+    FeedbackAction,
+    Job,
+    JobStatus,
+    Upload,
+    UploadStatus,
+)
 from dms.schemas import (
     ApproveUploadRequest,
     CompileRecipeNLGDatasetRequest,
@@ -17,6 +31,9 @@ from dms.schemas import (
     DatasetCreateRequest,
     DraftRequest,
     DraftResponse,
+    FeedbackMetricsResponse,
+    FeedbackRequest,
+    FeedbackResponse,
     KaggleDatasetDownloadRequest,
     PublishVersionRequest,
     Recipe1MSampleIngestRequest,
@@ -24,7 +41,6 @@ from dms.schemas import (
     UploadInitRequest,
     UploadInitResponse,
 )
-from dms import events
 from dms.tasks import (
     compile_recipenlg_dataset,
     compile_training_dataset,
@@ -34,6 +50,7 @@ from dms.tasks import (
     publish_dataset_version,
     score_upload_risk,
 )
+from prometheus_client import CONTENT_TYPE_LATEST, CollectorRegistry, Gauge, generate_latest
 
 app = FastAPI(title="DMS API")
 logger = logging.getLogger(__name__)
@@ -41,6 +58,147 @@ logger = logging.getLogger(__name__)
 # Expose /metrics for Prometheus scraping
 from prometheus_fastapi_instrumentator import Instrumentator
 Instrumentator().instrument(app).expose(app)
+
+
+def _isoformat_utc(value: datetime) -> str:
+    return value.isoformat() + "Z"
+
+
+def _serialise_draft_response(response: DraftResponse, image_key: str | None) -> dict:
+    return {
+        "draft_id": response.draft_id,
+        "image_key": image_key,
+        "validation": response.validation.model_dump(),
+        "title": response.title,
+        "ingredients": response.ingredients,
+        "steps": response.steps,
+        "tags": response.tags,
+        "confidence": response.confidence,
+        "disclaimer": response.disclaimer,
+        "top_k_matches": response.top_k_matches,
+    }
+
+
+def _final_recipe_payload(payload: FeedbackRequest) -> dict | None:
+    if payload.action == FeedbackAction.rejected.value:
+        return None
+    return {
+        "title": payload.final_title,
+        "ingredients": payload.final_ingredients,
+        "steps": payload.final_steps,
+    }
+
+
+def _compute_edit_distance(draft_shown: dict, payload: FeedbackRequest) -> float | None:
+    if payload.action == FeedbackAction.rejected.value:
+        return None
+
+    before = json.dumps(
+        {
+            "title": draft_shown.get("title", ""),
+            "ingredients": draft_shown.get("ingredients", []),
+            "steps": draft_shown.get("steps", []),
+        },
+        sort_keys=True,
+    )
+    after = json.dumps(_final_recipe_payload(payload), sort_keys=True)
+    similarity = SequenceMatcher(a=before, b=after).ratio()
+    return round(1.0 - similarity, 4)
+
+
+def _safe_rate(numerator: int, denominator: int) -> float:
+    if denominator <= 0:
+        return 0.0
+    return round(numerator / denominator, 4)
+
+
+def _feedback_metrics_snapshot(db: Session) -> dict[str, float | int | None]:
+    rows = db.query(Feedback.action, func.count(Feedback.id)).group_by(Feedback.action).all()
+    counts = {action.value if hasattr(action, "value") else str(action): count for action, count in rows}
+
+    total = sum(counts.values())
+    approved = counts.get(FeedbackAction.approved.value, 0)
+    edited = counts.get(FeedbackAction.edited.value, 0)
+    rejected = counts.get(FeedbackAction.rejected.value, 0)
+    avg_consent_rate = db.query(func.avg(func.cast(Feedback.consent, Float))).scalar()
+    avg_edit_distance = db.query(func.avg(Feedback.edit_distance)).scalar()
+
+    return {
+        "total": total,
+        "approved": approved,
+        "edited": edited,
+        "rejected": rejected,
+        "approval_rate": _safe_rate(approved, total),
+        "avg_consent_rate": round(float(avg_consent_rate or 0.0), 4),
+        "avg_edit_distance": None if avg_edit_distance is None else round(float(avg_edit_distance), 4),
+    }
+
+
+def _build_business_metrics(db: Session) -> bytes:
+    registry = CollectorRegistry()
+
+    feedback_total = Gauge("dms_feedback_total", "Total feedback records stored in DMS", registry=registry)
+    feedback_action_total = Gauge(
+        "dms_feedback_action_total",
+        "Feedback records by action",
+        ["action"],
+        registry=registry,
+    )
+    feedback_approval_rate = Gauge(
+        "dms_feedback_approval_rate",
+        "Approved feedback ratio",
+        registry=registry,
+    )
+    feedback_consent_rate = Gauge(
+        "dms_feedback_consent_rate",
+        "Average consent ratio over feedback records",
+        registry=registry,
+    )
+    feedback_avg_edit_distance = Gauge(
+        "dms_feedback_avg_edit_distance",
+        "Average edit distance for approved or edited recipes",
+        registry=registry,
+    )
+    upload_total = Gauge(
+        "dms_upload_total",
+        "Uploads by moderation status",
+        ["status"],
+        registry=registry,
+    )
+    job_total = Gauge(
+        "dms_jobs_total",
+        "Jobs by kind and status",
+        ["kind", "status"],
+        registry=registry,
+    )
+    draft_capture_total = Gauge(
+        "dms_draft_capture_total",
+        "Draft captures stored for feedback closure",
+        registry=registry,
+    )
+
+    feedback = _feedback_metrics_snapshot(db)
+    feedback_total.set(int(feedback["total"]))
+    feedback_action_total.labels("approved").set(int(feedback["approved"]))
+    feedback_action_total.labels("edited").set(int(feedback["edited"]))
+    feedback_action_total.labels("rejected").set(int(feedback["rejected"]))
+    feedback_approval_rate.set(float(feedback["approval_rate"]))
+    feedback_consent_rate.set(float(feedback["avg_consent_rate"]))
+    feedback_avg_edit_distance.set(float(feedback["avg_edit_distance"] or 0.0))
+
+    upload_rows = db.query(Upload.status, func.count(Upload.id)).group_by(Upload.status).all()
+    for status, count in upload_rows:
+        upload_total.labels(status.value if hasattr(status, "value") else str(status)).set(int(count))
+
+    job_rows = db.query(Job.kind, Job.status, func.count(Job.id)).group_by(Job.kind, Job.status).all()
+    for kind, status, count in job_rows:
+        job_total.labels(
+            kind,
+            status.value if hasattr(status, "value") else str(status),
+        ).set(int(count))
+
+    draft_capture_total.set(int(db.query(func.count(DraftCapture.draft_id)).scalar() or 0))
+    return generate_latest(registry)
 
 
 @app.on_event("startup")
@@ -145,7 +303,7 @@ async def inference_features(
 
 
 @app.post("/inference/draft", response_model=DraftResponse)
-async def inference_draft(payload: DraftRequest) -> DraftResponse:
+async def inference_draft(payload: DraftRequest, db: Session = Depends(get_db)) -> DraftResponse:
     """
     Generate a structured recipe draft from a food image.
 
@@ -153,19 +311,19 @@ async def inference_draft(payload: DraftRequest) -> DraftResponse:
     (swift_key). Returns a complete recipe draft with title, ingredients,
     steps, tags, confidence score, and a draft_id for downstream feedback capture.
 
-    The draft is template-based (fast, no LLM required).  The draft_id should
+    The draft is template-based (fast, no LLM required). The draft_id should
     be stored by the caller and included in the POST /feedback payload when the
     user approves/edits the recipe, enabling the retraining feedback loop.
     """
     from dms import draft as draft_module
 
-    # --- Resolve raw image bytes ---
     raw_bytes: bytes | None = None
     try:
         if payload.image_b64:
             raw_bytes = inference.decode_image_bytes(image_base64=payload.image_b64)
         elif payload.swift_key:
             from dms.storage import require_swift
+
             conn = require_swift()
             _, data = conn.get_object(settings.swift_training_container, payload.swift_key)
             raw_bytes = bytes(data)
@@ -179,7 +337,6 @@ async def inference_draft(payload: DraftRequest) -> DraftResponse:
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Could not load image: {exc}") from exc
 
-    # --- Embed + retrieve top-K ---
     try:
         embedding = inference.compute_embedding(raw_bytes)
         matches = inference.search_qdrant(embedding, payload.top_k)
@@ -188,12 +345,9 @@ async def inference_draft(payload: DraftRequest) -> DraftResponse:
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Embedding/retrieval failed: {exc}") from exc
 
-    # --- Generate draft ---
     result = draft_module.generate_draft(raw_bytes, matches, swift_key=payload.swift_key)
 
-    events.emit_inference_request(None, payload.top_k, len(matches))
-
-    return DraftResponse(
+    response = DraftResponse(
         draft_id=result.draft_id,
         validation=result.validation.__dict__,
         title=result.title,
@@ -204,6 +358,80 @@ async def inference_draft(payload: DraftRequest) -> DraftResponse:
         disclaimer=result.disclaimer,
         top_k_matches=result.top_k_matches,
     )
+
+    draft_capture = DraftCapture(
+        draft_id=response.draft_id,
+        image_key=payload.swift_key,
+        draft_shown=_serialise_draft_response(response, payload.swift_key),
+    )
+    db.merge(draft_capture)
+    db.commit()
+
+    events.emit_inference_request(None, payload.top_k, len(matches))
+    return response
+
+
+@app.post("/feedback", response_model=FeedbackResponse, status_code=201)
+def create_feedback(payload: FeedbackRequest, db: Session = Depends(get_db)) -> FeedbackResponse:
+    draft_capture = db.get(DraftCapture, payload.draft_id)
+    if not draft_capture:
+        raise HTTPException(status_code=404, detail="draft not found")
+
+    edit_distance = _compute_edit_distance(draft_capture.draft_shown, payload)
+    feedback = Feedback(
+        draft_id=payload.draft_id,
+        image_key=draft_capture.image_key,
+        draft_shown=draft_capture.draft_shown,
+        final_saved=_final_recipe_payload(payload),
+        edit_distance=edit_distance,
+        action=FeedbackAction(payload.action),
+        consent=payload.consent,
+        mealie_recipe_slug=payload.mealie_recipe_slug,
+    )
+    db.add(feedback)
+    db.commit()
+    db.refresh(feedback)
+
+    events.emit_feedback_captured(
+        feedback_id=feedback.id,
+        draft_id=feedback.draft_id,
+        action=feedback.action.value,
+        consent=feedback.consent,
+        edit_distance=feedback.edit_distance,
+        image_key=feedback.image_key,
+        mealie_recipe_slug=feedback.mealie_recipe_slug,
+    )
+
+    return FeedbackResponse(
+        status="ok",
+        draft_id=feedback.draft_id,
+        feedback_id=feedback.id,
+        edit_distance=feedback.edit_distance,
+    )
+
+
+@app.get("/metrics/feedback", response_model=FeedbackMetricsResponse)
+def get_feedback_metrics(db: Session = Depends(get_db)) -> FeedbackMetricsResponse:
+    feedback = _feedback_metrics_snapshot(db)
+    return FeedbackMetricsResponse(
+        total=int(feedback["total"]),
+        approved=int(feedback["approved"]),
+        edited=int(feedback["edited"]),
+        rejected=int(feedback["rejected"]),
+        approval_rate=float(feedback["approval_rate"]),
+        avg_consent_rate=float(feedback["avg_consent_rate"]),
+        avg_edit_distance=feedback["avg_edit_distance"],
+    )
+
+
+@app.get("/metrics/business")
+def get_business_metrics() -> Response:
+    db = SessionLocal()
+    try:
+        payload = _build_business_metrics(db)
+    finally:
+        db.close()
+    return Response(content=payload, media_type=CONTENT_TYPE_LATEST)
 
 
 @app.post("/uploads/init", response_model=UploadInitResponse)
@@ -278,7 +506,7 @@ def list_versions(dataset_id: int, db: Session = Depends(get_db)) -> dict:
                 "version": v.version,
                 "manifest_key": v.manifest_key,
                 "meta_key": v.meta_key,
-                "created_at": v.created_at.isoformat() + "Z",
+                "created_at": _isoformat_utc(v.created_at),
             }
             for v in versions
         ],
@@ -439,6 +667,7 @@ def trigger_training_pipeline(payload: TrainingPipelineRequest) -> dict:
     Runs: compile → quality check → augmentation → manifest → Qdrant index build.
     """
     from dms.tasks import run_training_pipeline
+
     task = run_training_pipeline.delay(
         payload.version,
         payload.dataset_id,
@@ -459,6 +688,6 @@ def get_job(job_id: int, db: Session = Depends(get_db)) -> dict:
         "status": job.status,
         "message": job.message,
         "payload": json.loads(job.payload_json),
-        "created_at": job.created_at.isoformat() + "Z",
-        "updated_at": job.updated_at.isoformat() + "Z",
+        "created_at": _isoformat_utc(job.created_at),
+        "updated_at": _isoformat_utc(job.updated_at),
     }

@@ -2,6 +2,9 @@ global:
   scrape_interval: 15s
   evaluation_interval: 15s
 
+rule_files:
+  - /etc/prometheus/alerts.yml
+
 scrape_configs:
 
   # Prometheus self-monitoring
@@ -24,6 +27,18 @@ scrape_configs:
     static_configs:
       - targets: ['dms-api:8000']
     metrics_path: /metrics
+
+  # DMS business metrics derived from product state
+  - job_name: dms-business
+    static_configs:
+      - targets: ['dms-api:8000']
+    metrics_path: /metrics/business
+
+  # Mealie ML feedback metrics exposed on the host service port
+  - job_name: mealie-ml
+    static_configs:
+      - targets: ['host.docker.internal:9000']
+    metrics_path: /api/ml/metrics
 
   # Redis metrics
   - job_name: redis
@@ -50,3 +65,21 @@ scrape_configs:
       - source_labels: [__name__]
         action: keep
         regex: qdrant_.*
+
+  # Model-serve production lane
+  - job_name: mms-production
+    static_configs:
+      - targets: ['192.5.87.188:30608']
+    metrics_path: /metrics
+
+  # Model-serve canary lane
+  - job_name: mms-canary
+    static_configs:
+      - targets: ['192.5.87.188:30609']
+    metrics_path: /metrics
+
+  # Rollout router
+  - job_name: mms-router
+    static_configs:
+      - targets: ['192.5.87.188:30610']
+    metrics_path: /metrics
